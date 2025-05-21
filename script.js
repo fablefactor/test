@@ -1,9 +1,25 @@
 let is24Hour = true;
-let selectedTimezone = null; // Initialize to null
-let localTimezoneReverseMap = {}; // For optimized local timezone lookup
-let currentSelectionPath = []; // Stores the current selection path, e.g., ['Continent', 'Country', 'City'] or ['Territories', 'Group', 'Territory', 'City']
+let selectedTimezone = null; 
+let localTimezoneReverseMap = {}; 
+let currentSelectionPath = []; 
 
-// Simple cookie functions
+// Helper function to safely access nested properties
+function getObjectFromPath(baseObject, pathArray) {
+    if (!baseObject || !pathArray || pathArray.length === 0) {
+        return null;
+    }
+    let current = baseObject;
+    for (const key of pathArray) {
+        if (current && typeof current === 'object' && key in current) {
+            current = current[key];
+        } else {
+            return null; 
+        }
+    }
+    return current;
+}
+
+// Simple cookie functions (remains the same)
 function saveLocationToCookie(level1, level2, level3, level4 = null) {
     const locationObject = {
         level1: encodeURIComponent(level1),
@@ -22,7 +38,7 @@ function getLocationFromCookie() {
     const match = document.cookie.match(/savedLocation=([^;]+)/);
     if (match && match[1]) {
         try {
-            const parsedObject = JSON.parse(match[1]); // Cookie stores JSON of pre-encoded values
+            const parsedObject = JSON.parse(match[1]); 
             parsedObject.level1 = decodeURIComponent(parsedObject.level1);
             parsedObject.level2 = decodeURIComponent(parsedObject.level2);
             parsedObject.level3 = decodeURIComponent(parsedObject.level3);
@@ -38,17 +54,14 @@ function getLocationFromCookie() {
     return null;
 }
 
-
-// Get user's local timezone
 const userLocation = {
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 };
 
-// Function to build the reverse map for local timezone lookup
+// buildTimezoneReverseMap remains the same
 function buildTimezoneReverseMap() {
     for (const continentKey in worldCities) {
         if (typeof worldCities[continentKey] !== 'object') continue;
-
         if (continentKey === 'Territories') {
             for (const groupKey in worldCities.Territories) {
                 if (typeof worldCities.Territories[groupKey] !== 'object' || groupKey === 'metadata') continue;
@@ -61,9 +74,9 @@ function buildTimezoneReverseMap() {
                                 if (!localTimezoneReverseMap[timezone]) {
                                     localTimezoneReverseMap[timezone] = { 
                                         city: cityKey, 
-                                        territory: territoryKey, // level3 for territories path
-                                        group: groupKey,       // level2 for territories path
-                                        continent: continentKey // level1 ('Territories')
+                                        territory: territoryKey, 
+                                        group: groupKey,       
+                                        continent: continentKey 
                                     };
                                 }
                             }
@@ -71,7 +84,7 @@ function buildTimezoneReverseMap() {
                     }
                 }
             }
-        } else { // Regular continents
+        } else { 
             for (const countryKey in worldCities[continentKey]) {
                 if (countryKey === 'metadata' || countryKey === 'population_order' || typeof worldCities[continentKey][countryKey] !== 'object') continue;
                 for (const cityKey in worldCities[continentKey][countryKey]) {
@@ -81,8 +94,8 @@ function buildTimezoneReverseMap() {
                             if (!localTimezoneReverseMap[timezone]) {
                                 localTimezoneReverseMap[timezone] = { 
                                     city: cityKey, 
-                                    country: countryKey,  // level2 for regular path
-                                    continent: continentKey // level1 for regular path
+                                    country: countryKey,  
+                                    continent: continentKey 
                                 };
                             }
                         }
@@ -93,17 +106,30 @@ function buildTimezoneReverseMap() {
     }
 }
 
-
-// Initialize select2 dropdowns
 $(document).ready(function() {
     buildTimezoneReverseMap();
 
-    const continentSelect = $('#continentSelect'); // Level 1
-    const countrySelect = $('#countrySelect');     // Level 2: Country or Territory Group
-    const citySelect = $('#citySelect');         // Level 3: City or Specific Territory
-    const territoryCitySelect = $('#territoryCitySelect'); // Level 4: City within a Specific Territory
+    const dropdowns = [
+        $('#continentSelect'),    // Level 0
+        $('#countrySelect'),      // Level 1
+        $('#citySelect'),         // Level 2
+        $('#territoryCitySelect') // Level 3
+    ];
 
-    // Custom matcher function that only matches from the start of the text
+    const dropdownLabels = [
+        $('label[for="continentSelect"]'),
+        $('label[for="countrySelect"]'),
+        $('label[for="citySelect"]'),
+        $('label[for="territoryCitySelect"]')
+    ];
+
+    const defaultPlaceholders = [
+        "Select Continent/Region",
+        "Select Country",
+        "Select City",
+        "Select City" // For territory cities
+    ];
+
     function matchStart(params, data) {
         if ($.trim(params.term) === '') return data;
         if (typeof data.text === 'undefined') return null;
@@ -111,352 +137,263 @@ $(document).ready(function() {
         return null;
     }
     
-    // Helper to update Select2 placeholder and reinitialize if needed
-    function updateSelect2Dropdown(selectElement, placeholderText, isDisabled, isVisible = true) {
+    function updateSpecificSelect2(selectElement, placeholderText, isDisabled, isVisible = true) {
         selectElement.prop('disabled', isDisabled);
         
-        const firstOption = selectElement.find('option:first-child');
-        if (firstOption.length > 0 && firstOption.val() === '') {
-            firstOption.text(placeholderText);
-        } else {
-            // Prepend placeholder if not exists or structure changed
-            selectElement.find('option[value=""]').remove(); // Remove old placeholder
-            selectElement.prepend(new Option(placeholderText, ''));
-            selectElement.val(''); // Select the new placeholder
-        }
+        selectElement.find('option[value=""]').remove(); 
+        selectElement.prepend(new Option(placeholderText, ''));
+        if (!isDisabled && selectElement.val() === '') selectElement.val(''); 
+        else if (isDisabled) selectElement.val(null);
         
-        // Reinitialize Select2 with new placeholder
         selectElement.select2({
             theme: 'classic',
             matcher: matchStart,
-            width: '180px',
+            width: 'style', 
             placeholder: placeholderText,
             allowClear: true
         });
+         if (selectElement.val() === '') { // Ensure placeholder is shown
+             selectElement.trigger('change.select2');
+        }
 
+        const parentContainer = selectElement.parent().hasClass('select2-custom-container') ? selectElement.parent() : selectElement.next('.select2-container');
         if (isVisible) {
-            selectElement.parent().show(); // Show the select2 container
+            parentContainer.show(); 
         } else {
-            selectElement.parent().hide();
+            parentContainer.hide();
         }
     }
     
-    // Helper to update dropdown state (labels, placeholders, visibility, enabled/disabled)
-    function updateDropdownState(level1Value, level2Value = null, level3Value = null) {
-        // Default labels
-        $('label[for="countrySelect"]').text('Select Country');
-        $('label[for="citySelect"]').text('Select City');
-        $('label[for="territoryCitySelect"]').text('Select City');
+    function updateAllDropdownStates() {
+        const pathLength = currentSelectionPath.length;
+        const isTerritoryPath = currentSelectionPath[0] === 'Territories';
 
-        if (level1Value === 'Territories') {
-            $('label[for="countrySelect"]').text('Select Territory Group');
-            updateSelect2Dropdown(countrySelect, 'Select Territory Group', false);
+        dropdowns.forEach((dd, level) => {
+            let labelText = defaultPlaceholders[level];
+            let placeholderText = defaultPlaceholders[level];
+            let isDisabled = true;
+            let isVisible = false;
+            let optionsToLoad = null;
 
-            if (level2Value) {
-                $('label[for="citySelect"]').text('Select Specific Territory');
-                updateSelect2Dropdown(citySelect, 'Select Specific Territory', false);
-            } else {
-                updateSelect2Dropdown(citySelect, 'Select Specific Territory', true, false); // Disabled, hidden
+            // Determine labels and placeholders based on path
+            if (isTerritoryPath) {
+                if (level === 1) { labelText = "Select Territory Group"; placeholderText = "Select Territory Group"; }
+                if (level === 2) { labelText = "Select Specific Territory"; placeholderText = "Select Specific Territory"; }
+                if (level === 3) { labelText = "Select City"; placeholderText = "Select City"; }
             }
+            dropdownLabels[level].text(labelText);
 
-            if (level3Value) {
-                $('label[for="territoryCitySelect"]').text('Select City');
-                updateSelect2Dropdown(territoryCitySelect, 'Select City', false);
-            } else {
-                updateSelect2Dropdown(territoryCitySelect, 'Select City', true, false); // Disabled, hidden
-            }
-        } else { // Regular Continent
-            updateSelect2Dropdown(countrySelect, 'Select Country', !level1Value);
-            
-            if (level1Value) { // Continent selected
-                updateSelect2Dropdown(citySelect, 'Select City', !level2Value);
-            } else { // No continent selected
-                updateSelect2Dropdown(citySelect, 'Select City', true, false); // Disabled, hidden
-            }
-            updateSelect2Dropdown(territoryCitySelect, 'Select City', true, false); // Always disabled & hidden for regular continents
-        }
-    }
-
-    // Initialize all selects with Select2
-    [continentSelect, countrySelect, citySelect, territoryCitySelect].forEach(select => {
-        const labelElement = $(`label[for="${select.attr('id')}"]`);
-        let placeholderText = 'Select an option'; // Default
-        if (labelElement.length) { // Try to get placeholder from label text
-             placeholderText = labelElement.text().replace('Select ', 'Select '); // Keep "Select " prefix
-        } else if (select.find('option[value=""]').length) { // Or from current placeholder option
-            placeholderText = select.find('option[value=""]').text();
-        }
-        
-        select.select2({
-            theme: 'classic',
-            matcher: matchStart,
-            width: '180px',
-            placeholder: placeholderText,
-            allowClear: true
-        });
-    });
-    updateDropdownState(null); // Set initial state for all dropdowns
-
-    // Populate continents (Level 1)
-    Object.keys(worldCities)
-        .filter(key => key !== 'metadata') // Ensure metadata isn't treated as a continent
-        .sort()
-        .forEach(continent => {
-            continentSelect.append(new Option(continent, continent));
-        });
-
-    // Handle continent selection (Level 1)
-    continentSelect.on('change', function() {
-        const continent = $(this).val();
-        currentSelectionPath = continent ? [continent] : [];
-        clearLocationInfo();
-
-        countrySelect.empty().append(new Option('', '')).trigger('change.select2');
-        citySelect.empty().append(new Option('', '')).trigger('change.select2');
-        territoryCitySelect.empty().append(new Option('', '')).trigger('change.select2');
-        
-        updateDropdownState(continent);
-
-        if (continent) {
-            const source = (continent === 'Territories') ? worldCities.Territories : worldCities[continent];
-            Object.keys(source)
-                .filter(key => key !== 'metadata' && key !== 'population_order')
-                .sort()
-                .forEach(item => countrySelect.append(new Option(item, item)));
-            
-            if (!$(this).data('programmatic-change')) {
-                 setTimeout(() => countrySelect.select2('open'), 0);
-            }
-        }
-        countrySelect.trigger('change'); // Reset level 2 and cascade
-    });
-
-    // Handle country/territory group selection (Level 2)
-    countrySelect.on('change', function() {
-        const selectedLevel1 = continentSelect.val();
-        const selectedLevel2 = $(this).val();
-        
-        currentSelectionPath = selectedLevel1 ? [selectedLevel1] : [];
-        if (selectedLevel2) currentSelectionPath.push(selectedLevel2); else currentSelectionPath.splice(1);
-        clearLocationInfo();
-
-        citySelect.empty().append(new Option('', '')).trigger('change.select2');
-        territoryCitySelect.empty().append(new Option('', '')).trigger('change.select2');
-        updateDropdownState(selectedLevel1, selectedLevel2);
-        
-        if (selectedLevel2) {
-            const source = (selectedLevel1 === 'Territories') ? 
-                worldCities.Territories[selectedLevel2] : 
-                worldCities[selectedLevel1][selectedLevel2];
-            
-            Object.keys(source)
-                .filter(key => key !== 'metadata' && key !== 'population_order')
-                .sort()
-                .forEach(item => citySelect.append(new Option(item, item)));
-
-            if (!$(this).data('programmatic-change')) {
-                setTimeout(() => citySelect.select2('open'), 0);
-            }
-        }
-        citySelect.trigger('change'); // Reset level 3 and cascade
-    });
-
-    // Handle city/specific territory selection (Level 3)
-    citySelect.on('change', function() {
-        const selectedLevel1 = continentSelect.val();
-        const selectedLevel2 = countrySelect.val();
-        const selectedLevel3 = $(this).val();
-
-        currentSelectionPath = (selectedLevel1 && selectedLevel2) ? [selectedLevel1, selectedLevel2] : [];
-        if (selectedLevel3) currentSelectionPath.push(selectedLevel3); else currentSelectionPath.splice(2);
-        clearLocationInfo();
-        
-        territoryCitySelect.empty().append(new Option('', '')).trigger('change.select2');
-        updateDropdownState(selectedLevel1, selectedLevel2, selectedLevel3);
-
-        if (selectedLevel3) {
-            if (selectedLevel1 === 'Territories') {
-                const source = worldCities.Territories[selectedLevel2][selectedLevel3];
-                Object.keys(source)
-                    .filter(key => key !== 'metadata' && key !== 'population_order')
-                    .sort()
-                    .forEach(city => territoryCitySelect.append(new Option(city, city)));
-                
-                if (!$(this).data('programmatic-change')) {
-                     setTimeout(() => territoryCitySelect.select2('open'), 0);
+            if (level < pathLength) { // This dropdown has a selection in currentPath
+                isDisabled = false;
+                isVisible = true;
+            } else if (level === pathLength) { // This is the next dropdown to populate
+                const sourceObject = getObjectFromPath(worldCities, currentSelectionPath);
+                if (sourceObject && typeof sourceObject === 'object') {
+                    const keys = Object.keys(sourceObject).filter(k => k !== 'metadata' && k !== 'population_order');
+                    if (keys.length > 0) {
+                        isDisabled = false;
+                        isVisible = true;
+                        optionsToLoad = keys.sort(); // Basic sort, specific sort handled by handlers if needed
+                    }
                 }
-            } else { // Regular Continent -> City selected
-                updateLocationInfo(selectedLevel1, selectedLevel2, selectedLevel3);
-                saveLocationToCookie(selectedLevel1, selectedLevel2, selectedLevel3);
             }
-        }
-        territoryCitySelect.trigger('change'); // Reset level 4 if applicable
+            // For levels > pathLength, they remain disabled and hidden by default
+
+            dd.empty().append(new Option('', '')); // Clear and add placeholder option
+            if (optionsToLoad) {
+                optionsToLoad.forEach(item => dd.append(new Option(item, item)));
+            }
+            // Restore selected value if it's part of the current path
+            if (level < pathLength) {
+                dd.val(currentSelectionPath[level]);
+            } else {
+                dd.val(''); // Ensure it's reset if no longer part of path or no options
+            }
+            updateSpecificSelect2(dd, placeholderText, isDisabled, isVisible);
+        });
+    }
+    
+    // Initialize all dropdowns
+    dropdowns.forEach((dd, index) => {
+        const placeholder = defaultPlaceholders[index];
+        dd.select2({ theme: 'classic', matcher: matchStart, width: 'style', placeholder: placeholder, allowClear: true });
     });
+    updateAllDropdownStates(); // Set initial state
 
-    // Handle Territory City selection (Level 4)
-    territoryCitySelect.on('change', function() {
-        const selectedCity = $(this).val();
-        
-        currentSelectionPath = (currentSelectionPath.length > 2 && currentSelectionPath[0] === 'Territories') ? 
-                               currentSelectionPath.slice(0, 3) : // Keep first 3 elements
-                               []; 
-        if (selectedCity) currentSelectionPath.push(selectedCity); else currentSelectionPath.splice(3);
-        clearLocationInfo();
+    // Populate Level 0 (Continents)
+    Object.keys(worldCities)
+        .filter(key => key !== 'metadata') 
+        .sort()
+        .forEach(continent => dropdowns[0].append(new Option(continent, continent)));
 
-        if (selectedCity && currentSelectionPath.length === 4 && currentSelectionPath[0] === 'Territories') {
-            updateLocationInfo(currentSelectionPath[0], currentSelectionPath[1], currentSelectionPath[2], selectedCity);
-            saveLocationToCookie(currentSelectionPath[0], currentSelectionPath[1], currentSelectionPath[2], selectedCity);
-        }
+    // Generic Event Handler Setup
+    dropdowns.forEach((dropdown, level) => {
+        dropdown.on('change', function() {
+            const selectedValue = $(this).val();
+            
+            // Update currentSelectionPath
+            currentSelectionPath = currentSelectionPath.slice(0, level);
+            if (selectedValue) {
+                currentSelectionPath.push(selectedValue);
+            }
+
+            clearLocationInfo(); // Clear info panels before potentially updating
+
+            // Update states of all subsequent dropdowns
+            updateAllDropdownStates(); 
+
+            // Check if this selection completes a path to a timezone
+            const isTerritoryFinalCity = currentSelectionPath.length === 4 && currentSelectionPath[0] === 'Territories';
+            const isStandardFinalCity = currentSelectionPath.length === 3 && currentSelectionPath[0] !== 'Territories';
+            
+            if (isTerritoryFinalCity) {
+                updateLocationInfo(currentSelectionPath[0], currentSelectionPath[1], currentSelectionPath[2], currentSelectionPath[3]);
+                saveLocationToCookie(currentSelectionPath[0], currentSelectionPath[1], currentSelectionPath[2], currentSelectionPath[3]);
+            } else if (isStandardFinalCity) {
+                const timezone = getObjectFromPath(worldCities, currentSelectionPath);
+                if (typeof timezone === 'string') { // It's a timezone string, so path is complete
+                    updateLocationInfo(currentSelectionPath[0], currentSelectionPath[1], currentSelectionPath[2]);
+                    saveLocationToCookie(currentSelectionPath[0], currentSelectionPath[1], currentSelectionPath[2]);
+                } else if (currentSelectionPath[0] === 'Territories' && currentSelectionPath.length === 3) {
+                    // A specific territory is selected, but not a city yet. Update info partially.
+                    updateLocationInfo(currentSelectionPath[0], currentSelectionPath[1], currentSelectionPath[2], null);
+                }
+            } else if (currentSelectionPath.length === 0) { // All cleared
+                 clearLocationInfo();
+            }
+
+
+            // Open next dropdown if applicable
+            if (!$(this).data('programmatic-change') && selectedValue) {
+                const nextLevel = level + 1;
+                if (nextLevel < dropdowns.length && !dropdowns[nextLevel].prop('disabled') && dropdowns[nextLevel].parent().is(':visible')) {
+                    setTimeout(() => dropdowns[nextLevel].select2('open'), 0);
+                }
+            }
+        });
     });
     
-    // --- Programmatic Location Setting ---
     function setDropdownProgrammatic(selectElement, value) {
         return new Promise((resolve, reject) => {
-            // Check if the option exists. If not, it might be from an old cookie or data change.
-            if (selectElement.find(`option[value="${value}"]`).length === 0) {
-                 // Add the option temporarily if it's missing, common for dynamic dropdowns
-                // This is a workaround; ideally data should be consistent or cookie migration handled.
-                // console.warn(`Option "${value}" not found in dropdown #${selectElement.attr('id')}, attempting to add.`);
-                // selectElement.append(new Option(value, value)); // This might not be desired if value is invalid
-            }
             selectElement.data('programmatic-change', true);
-            selectElement.val(value).trigger('change'); // This will trigger dependent dropdown population
-            selectElement.removeData('programmatic-change');
+            if (selectElement.find(`option[value="${value}"]`).length === 0) {
+                 console.warn(`Option "${value}" not found in dropdown #${selectElement.attr('id')}. Attempting to add.`);
+                 // This behavior of adding option might be problematic if value is truly invalid.
+                 // selectElement.append(new Option(value, value)); 
+                 // For now, let's rely on subsequent updateAllDropdownStates to clear if path is invalid
+            }
             
-            // Wait for dependent dropdowns to potentially populate
+            selectElement.val(value).trigger('change'); 
+            
+            // Value might be reset by 'change' if options are not yet populated for it.
+            // The 'change' handler now calls updateAllDropdownStates, which should repopulate and set value.
+            
             setTimeout(() => {
-                 // Verify selection after change, as Select2 might reset if value is invalid post-reinitialization
                 if (selectElement.val() !== value && selectElement.find(`option[value="${value}"]`).length > 0) {
-                    // Re-apply if Select2 reset it (can happen if options were not ready)
-                    // console.log(`Re-applying value "${value}" to #${selectElement.attr('id')}`);
-                    selectElement.data('programmatic-change', true);
-                    selectElement.val(value).trigger('change');
-                    selectElement.removeData('programmatic-change');
-                     setTimeout(resolve, 200); // Second timeout after re-apply
+                    // If it was reset by a fast cascade, try setting it again now that options should be there
+                    // console.log(`Re-setting ${selectElement.attr('id')} to ${value} after timeout`);
+                    selectElement.val(value).trigger('change.select2'); // Just update Select2 display
                 } else if (selectElement.val() !== value) {
-                     console.warn(`Failed to set value "${value}" on #${selectElement.attr('id')}. Value after attempt: ${selectElement.val()}`);
-                     reject(new Error(`Failed to set value "${value}" on #${selectElement.attr('id')}`));
+                     console.warn(`Failed to definitively set value "${value}" on #${selectElement.attr('id')}. Current: ${selectElement.val()}`);
+                     // Not rejecting, as the path might still be valid up to a point.
                 }
-                else {
-                    resolve();
-                }
-            }, 250); // Increased for stability, esp. for chained programmatic changes
+                selectElement.removeData('programmatic-change');
+                resolve();
+            }, 300); // Increased timeout for stability
         });
     }
 
     const savedLocation = getLocationFromCookie();
-    if (savedLocation && savedLocation.level1 && savedLocation.level2 && savedLocation.level3) {
-        setDropdownProgrammatic(continentSelect, savedLocation.level1)
-            .then(() => setDropdownProgrammatic(countrySelect, savedLocation.level2))
-            .then(() => setDropdownProgrammatic(citySelect, savedLocation.level3))
-            .then(() => {
-                if (savedLocation.level1 === 'Territories' && savedLocation.level4) {
-                    // Ensure the fourth dropdown is visible if we're setting its value.
-                    territoryCitySelect.parent().show(); 
-                    return setDropdownProgrammatic(territoryCitySelect, savedLocation.level4);
-                }
-            })
-            .catch(error => {
-                console.error("Error setting saved location, falling back to default:", error);
-                // Fallback to default if setting saved location fails by resetting and calling default.
-                continentSelect.val(null).trigger('change'); 
-                updateDropdownState(null); // This should hide unnecessary dropdowns
-                setDefaultNewYork();
-            });
-    } else {
-        setDefaultNewYork();
-    }
-    
-    function setDefaultNewYork() {
-        setDropdownProgrammatic(continentSelect, 'North America')
-            .then(() => setDropdownProgrammatic(countrySelect, 'United States'))
-            .then(() => setDropdownProgrammatic(citySelect, 'New York'))
-            .catch(error => console.error("Error setting default (New York) location:", error));
-    }
-    
-    // Initial UI setup based on current selections (should be empty or default after load)
-    // updateDropdownState(continentSelect.val(), countrySelect.val(), citySelect.val());
-    // Done within the load logic now.
+    if (savedLocation && savedLocation.level1) { // Basic check for a saved location
+        currentSelectionPath = [savedLocation.level1];
+        if (savedLocation.level2) currentSelectionPath.push(savedLocation.level2);
+        if (savedLocation.level3) currentSelectionPath.push(savedLocation.level3);
+        if (savedLocation.level4 && savedLocation.level1 === 'Territories') currentSelectionPath.push(savedLocation.level4);
+        
+        updateAllDropdownStates(); // This will populate and set values based on currentSelectionPath
 
-    // Set local timezone information
+        // Final update for location info based on the fully restored path
+        if (currentSelectionPath.length === 4 && currentSelectionPath[0] === 'Territories') {
+            updateLocationInfo(currentSelectionPath[0], currentSelectionPath[1], currentSelectionPath[2], currentSelectionPath[3]);
+        } else if (currentSelectionPath.length === 3 && currentSelectionPath[0] !== 'Territories') {
+             const tz = getObjectFromPath(worldCities, currentSelectionPath);
+             if(typeof tz === 'string') {
+                updateLocationInfo(currentSelectionPath[0], currentSelectionPath[1], currentSelectionPath[2]);
+             }
+        } else if (currentSelectionPath.length === 3 && currentSelectionPath[0] === 'Territories') {
+             updateLocationInfo(currentSelectionPath[0], currentSelectionPath[1], currentSelectionPath[2], null);
+        }
+
+
+    } else {
+        // Default to New York
+        currentSelectionPath = ['North America', 'United States', 'New York'];
+        updateAllDropdownStates();
+        updateLocationInfo('North America', 'United States', 'New York');
+    }
+    
     updateLocalTimezoneInfo();
 });
 
-// level1: Continent or 'Territories'
-// level2: Country or Territory Group
-// level3: City (if regular path) or Specific Territory
-// level4: City (if territory path), null otherwise
+// updateLocationInfo, clearLocationInfo, displayRegionInfo, updateClock, etc. remain largely the same
+// but updateLocationInfo is now more robust with getObjectFromPath
 function updateLocationInfo(level1, level2, level3, level4 = null) {
     let cityForDisplay, countryForDisplay, continentForDisplay;
-    let pathForTimezoneData; // This will be the object that holds the timezone string OR city objects
-    let finalCityForTimezone = level4; // If territory path
+    let finalCityForTimezone = level4; 
     let metadataSource;
     let anomalyLookupKey;
     let populationOrderSource;
     let populationCityKey;
+    let flagCountryName;
 
     if (level1 === 'Territories') {
-        if (!level2 || !level3) { // Not enough info for specific territory
-            clearLocationInfo(); return;
-        }
-        continentForDisplay = level1; // "Territories"
-        countryForDisplay = level2;   // e.g., "French Territories" (Group)
-        cityForDisplay = level3;      // e.g., "French Polynesia" (Specific Territory)
+        if (!level2 || !level3) { clearLocationInfo(); return; }
+        continentForDisplay = level1; 
+        countryForDisplay = level2;   
+        cityForDisplay = level3;      
         
-        pathForTimezoneData = worldCities[level1]?.[level2]?.[level3];
-        metadataSource = pathForTimezoneData?.metadata;
-        anomalyLookupKey = level3; // Use specific territory for anomaly
-        populationOrderSource = pathForTimezoneData;
-        populationCityKey = level4; // City within the territory
+        const territoryDataObject = getObjectFromPath(worldCities, [level1, level2, level3]);
 
-        if (level4) { // City selected within territory
-            selectedTimezone = pathForTimezoneData?.[level4];
-            cityForDisplay = level4; // Actual city name
-            // countryForDisplay remains specific territory, continentForDisplay remains group
-            // For display: City, Specific Territory (Territory Group)
+        metadataSource = territoryDataObject ? territoryDataObject.metadata : null;
+        anomalyLookupKey = level3; 
+        populationOrderSource = territoryDataObject;
+        populationCityKey = level4; 
+
+        if (level4) { 
+            selectedTimezone = getObjectFromPath(worldCities, [level1, level2, level3, level4]);
+            cityForDisplay = level4; 
             $('#cityInfo').text(`${cityForDisplay}, ${level3} (${level2})`);
-        } else { // Only specific territory selected, no city yet
-            selectedTimezone = null; // No specific city timezone
-            $('#cityInfo').text(`${level3} (${level2})`); // Display Specific Territory (Group)
+        } else { 
+            selectedTimezone = null; 
+            $('#cityInfo').text(`${level3} (${level2})`); 
         }
         flagCountryName = countryToCode[level3] ? level3 : (countryToCode[level2] ? level2 : null);
 
-
-    } else { // Regular Continent -> Country -> City path
-        if (!level1 || !level2 || !level3) { // Not enough info
-            clearLocationInfo(); return;
-        }
+    } else { 
+        if (!level1 || !level2 || !level3) { clearLocationInfo(); return; }
         continentForDisplay = level1;
         countryForDisplay = level2;
         cityForDisplay = level3;
-        finalCityForTimezone = level3;
+        // finalCityForTimezone = level3; // Not needed, selectedTimezone is direct
 
-        pathForTimezoneData = worldCities[level1]?.[level2];
-        selectedTimezone = pathForTimezoneData?.[level3];
-        metadataSource = pathForTimezoneData?.metadata;
-        anomalyLookupKey = level2; // Country
-        populationOrderSource = pathForTimezoneData;
+        selectedTimezone = getObjectFromPath(worldCities, [level1, level2, level3]);
+        const countryDataObject = getObjectFromPath(worldCities, [level1, level2]);
+        metadataSource = countryDataObject ? countryDataObject.metadata : null;
+        anomalyLookupKey = level2; 
+        populationOrderSource = countryDataObject;
         populationCityKey = level3;
         flagCountryName = level2;
         $('#cityInfo').text(`${cityForDisplay}, ${countryForDisplay} (${continentForDisplay})`);
     }
 
-    if (!selectedTimezone && level4 === null && level1 !== 'Territories') { // If it's not a territory and no city, clear
-         clearLocationInfo(); return;
-    }
-     if (level1 === 'Territories' && !level4) { // If territory path but no final city, still show some info but no clock
-        // updateClock will handle null selectedTimezone
-    } else if (!selectedTimezone) {
-        console.error("Timezone not found for path:", level1, level2, level3, level4);
-        $('#cityInfo').append(' - Timezone data not available');
-        // Keep flag and other info if available, but clear timezone specific parts
+    if ((level1 === 'Territories' && level4 && !selectedTimezone) || 
+        (level1 !== 'Territories' && level3 && !selectedTimezone)) { // Check level3 for non-territory paths
+        console.warn("Timezone data not found for the complete path:", level1, level2, level3, level4);
+        $('#cityInfo').append(' - Timezone data unavailable');
         $('#timezoneInfo').empty();
-        updateClock(); // Will clear international clock
-        return;
+        selectedTimezone = null; 
     }
-
-
-    // Update flag
+    
     if (flagCountryName && countryToCode && countryToCode[flagCountryName]) {
         const countryCode = countryToCode[flagCountryName].toLowerCase();
         $('#selectedFlag').attr('src', `https://flagcdn.com/${countryCode}.svg`).attr('alt', `Flag of ${flagCountryName}`);
@@ -473,8 +410,8 @@ function updateLocationInfo(level1, level2, level3, level4 = null) {
     }
     $('#timezoneInfo').text(tzInfo.join(' | '));
     
-    const adminEntityKey = (level1 === 'Territories') ? level3 : level2; // Key for administrativeRegions (e.g., 'France' or 'French Polynesia')
-    const adminCityKey = populationCityKey; // The actual city name for population/admin details
+    const adminEntityKey = (level1 === 'Territories') ? level3 : level2; 
+    const adminCityKey = (level1 === 'Territories') ? level4 : level3; // Corrected key for admin region city
     const adminRegion = (typeof administrativeRegions !== 'undefined' && administrativeRegions[adminEntityKey]) ? administrativeRegions[adminEntityKey][adminCityKey] : null;
     
     $('#regionInfo').empty(); 
@@ -487,7 +424,7 @@ function updateLocationInfo(level1, level2, level3, level4 = null) {
     }
     
     $('#populationInfo').empty();
-    if (populationOrderSource?.population_order && adminCityKey) { // Ensure adminCityKey is defined
+    if (populationOrderSource?.population_order && adminCityKey) { 
         const rank = populationOrderSource.population_order.indexOf(adminCityKey) + 1;
         const population = adminRegion?.metro_population;
         const popText = [];
@@ -506,7 +443,7 @@ function updateLocationInfo(level1, level2, level3, level4 = null) {
     }
     $('#specialNotes').text(specialNotesList.join(' | '));
     
-    updateClock();
+    updateClock(); 
 }
 
 
@@ -514,22 +451,20 @@ function clearLocationInfo() {
     $('#timezoneInfo, #regionInfo, #populationInfo, #specialNotes, #cityInfo').empty();
     $('#selectedFlag').attr('src', '').attr('alt', 'Flag');
     selectedTimezone = null; 
-    // currentSelectionPath is managed by dropdown handlers, not fully reset here
-    // to allow partial selections to persist if a higher level changes.
-    updateClock(); // Clear international clock if timezone is now null
+    updateClock(); 
 }
 
-// This function seems to be for continent-level metadata, adjust if needed
 function displayRegionInfo(metadata) { 
     const notes = [];
     if (metadata.description) notes.push(metadata.description);
     if (metadata.special_notes) notes.push(metadata.special_notes);
-    // This should ideally go to a dedicated region info display area, not #specialNotes or #timezoneInfo
-    // For now, clearing #specialNotes and setting it with this regional info if present.
-    if (notes.length > 0) {
-        $('#specialNotes').text("Regional Info: " + notes.join(' | '));
-    } else {
-        $('#specialNotes').empty();
+    const currentTzInfo = $('#timezoneInfo').text();
+    const regionalNotesString = notes.join(' | ');
+    if (regionalNotesString) {
+         // Avoid appending multiple times if this is called without clearing tzInfo
+        if (!currentTzInfo.includes(regionalNotesString)) {
+             $('#timezoneInfo').text(currentTzInfo ? `${currentTzInfo} | Regional: ${regionalNotesString}` : `Regional: ${regionalNotesString}`);
+        }
     }
 }
 
@@ -682,20 +617,15 @@ function updateInternationalClock(now) {
     }
 }
 
-// Toggle button functionality
 document.getElementById('formatToggle').addEventListener('click', function() {
     is24Hour = !is24Hour;
     this.textContent = is24Hour ? 'Switch to 12H' : 'Switch to 24H';
     updateClock();
 });
 
-// Initial button text setup
 document.getElementById('formatToggle').textContent = is24Hour ? 'Switch to 12H' : 'Switch to 24H';
 
-// Update the clock every second
 setInterval(updateClock, 1000);
-
-// Initial call to avoid delay
 updateClock();
 
 function updateLocalTimezoneInfo() {
@@ -704,40 +634,27 @@ function updateLocalTimezoneInfo() {
 
     if (locationData) {
         let locationInfoText;
-        let continentForDataLookup, groupOrCountryForDataLookup, territoryOrCityForDataLookup; // Keys for accessing worldCities
-        let anomalyLookupKey;
+        let pathForMetadata;
 
         if (locationData.continent === 'Territories') {
             locationInfoText = `${locationData.city}, ${locationData.territory} (${locationData.group})`;
-            continentForDataLookup = locationData.continent;    // 'Territories'
-            groupOrCountryForDataLookup = locationData.group;   // e.g., 'French Territories'
-            territoryOrCityForDataLookup = locationData.territory; // e.g., 'French Polynesia'
-            anomalyLookupKey = locationData.territory; // Use specific territory for anomaly lookup
+            pathForMetadata = [locationData.continent, locationData.group, locationData.territory, 'metadata'];
         } else {
             locationInfoText = `${locationData.city}, ${locationData.country} (${locationData.continent})`;
-            continentForDataLookup = locationData.continent;
-            groupOrCountryForDataLookup = locationData.country;
-            territoryOrCityForDataLookup = locationData.city; // Not directly used for metadata path here
-            anomalyLookupKey = locationData.country;
+            pathForMetadata = [locationData.continent, locationData.country, 'metadata'];
         }
         document.querySelector('.clock-container:first-child h2').textContent = `Local Time (${locationInfoText})`;
 
         const tzInfo = [];
-        let metadataSource;
-
-        if (locationData.continent === 'Territories') {
-            // Metadata for territories is usually at the specific territory level
-            metadataSource = worldCities[continentForDataLookup]?.[groupOrCountryForDataLookup]?.[territoryOrCityForDataLookup]?.metadata;
-        } else {
-            // Metadata for regular countries is at the country level
-            metadataSource = worldCities[continentForDataLookup]?.[groupOrCountryForDataLookup]?.metadata;
-        }
+        const metadataSource = getObjectFromPath(worldCities, pathForMetadata);
 
         if (metadataSource?.timezone_notes) {
             tzInfo.push(metadataSource.timezone_notes);
         }
-        if (typeof timeZoneAnomalies !== 'undefined' && timeZoneAnomalies[anomalyLookupKey]) {
-            tzInfo.push(timeZoneAnomalies[anomalyLookupKey]);
+        
+        const anomalyKey = locationData.territory || locationData.country; // Use territory for territories, country otherwise
+        if (typeof timeZoneAnomalies !== 'undefined' && timeZoneAnomalies[anomalyKey]) {
+            tzInfo.push(timeZoneAnomalies[anomalyKey]);
         }
         document.getElementById('localLocationInfo').textContent = tzInfo.join(' | ');
 

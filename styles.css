@@ -80,15 +80,28 @@ body {
 
 .selectors-container {
     display: flex;
+    flex-direction: row; /* Explicitly set for horizontal layout */
+    flex-wrap: nowrap;   /* Prevent wrapping by default */
     gap: var(--gap-small);
-    flex-wrap: wrap;
-    justify-content: center;
+    justify-content: center; /* Or space-between / flex-start */
     width: 100%;
     margin-bottom: 0.5rem;
+    align-items: center; /* Align items vertically */
 }
 
-/* Select2 width is now handled by JS initialization: width: '180px' */
-/* Removed: .select2-container { width: 180px !important; } */
+/* Make Select2 containers flexible */
+.selectors-container .select2-container {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0; /* Distribute space based on grow/shrink factors */
+    min-width: 150px; /* Minimum width before shrinking further or if content is small */
+}
+/* Ensure the original select elements (which Select2 uses) are also block-level and take width */
+.selectors-container select {
+    width: 100%; /* Make the original select take full width of its flex item container */
+    display: block; /* Ensure it behaves as a block element for width */
+}
+
 
 h2 {
     color: var(--text-color);
@@ -177,9 +190,17 @@ h2 {
        Select2 JS option `width: 'style'` or `width: 'resolve'` might be needed if this doesn't work.
        For now, relying on CSS specificity and Select2's behavior.
     */
-    .select2-container {
+    .selectors-container { /* Already set to flex-direction: column in media query */
+        /* flex-wrap: wrap; /* Allow wrapping if items are too wide for some reason, though column usually handles this */
+    }
+
+    /* Responsive styling for Select2 containers in column layout */
+    .selectors-container .select2-container {
+        flex-grow: 0; /* Do not grow, rely on explicit width */
+        flex-shrink: 1; /* Can shrink if needed */
+        flex-basis: auto; /* Reset basis to allow width to control */
         width: 100%; 
-        max-width: 300px;
+        max-width: 300px; /* Max width for mobile readability */
     }
     
     .clock {
