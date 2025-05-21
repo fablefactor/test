@@ -1,0 +1,23 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "cities-data.js",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fablefactor/test.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/fablefactor/test/issues"
+  },
+  "homepage": "https://github.com/fablefactor/test#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.52.0"
+  }
+}
