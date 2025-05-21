@@ -199,3 +199,8 @@ h2 {
     white-space: nowrap;
     border: 0;
 }
+
+/* Initially hide the raw select element for the 4th dropdown */
+#territoryCitySelect {
+    display: none;
+}
