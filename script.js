@@ -1,18 +1,37 @@
 let is24Hour = true;
 let selectedTimezone = 'America/New_York';
+let localTimezoneReverseMap = {}; // For optimized local timezone lookup
 
 // Simple cookie functions
 function saveLocationToCookie(continent, country, city) {
-    const location = JSON.stringify({ continent, country, city });
-    document.cookie = `savedLocation=${location};max-age=31536000;path=/`; // 1 year
+    // Encode individual components before stringifying, as per explicit instruction
+    const locationObject = {
+        continent: encodeURIComponent(continent),
+        country: encodeURIComponent(country),
+        city: encodeURIComponent(city)
+    };
+    const locationString = JSON.stringify(locationObject);
+    // No need to encode locationString again if individual parts are encoded.
+    // However, if the entire string was meant to be encoded after stringify, that's different.
+    // Based on "individually passed through encodeURIComponent", locationString is now JSON of encoded parts.
+    const cookieAttributes = `max-age=31536000;path=/;SameSite=Lax${window.isSecureContext ? ';Secure' : ''}`;
+    document.cookie = `savedLocation=${locationString};${cookieAttributes}`; // 1 year. locationString is JSON of pre-encoded values.
 }
 
 function getLocationFromCookie() {
     const match = document.cookie.match(/savedLocation=([^;]+)/);
-    if (match) {
+    if (match && match[1]) {
         try {
-            return JSON.parse(match[1]);
+            // The cookie value is JSON string of pre-encoded values.
+            // No need to decodeURIComponent on match[1] itself if it wasn't encoded after stringify.
+            const parsedObject = JSON.parse(match[1]);
+            // Decode individual components after parsing
+            parsedObject.continent = decodeURIComponent(parsedObject.continent);
+            parsedObject.country = decodeURIComponent(parsedObject.country);
+            parsedObject.city = decodeURIComponent(parsedObject.city);
+            return parsedObject;
         } catch (e) {
+            console.error("Error parsing or decoding location cookie:", e);
             return null;
         }
     }
@@ -24,8 +43,34 @@ const userLocation = {
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 };
 
+// Function to build the reverse map for local timezone lookup
+function buildTimezoneReverseMap() {
+    for (const continent in worldCities) {
+        // Skip 'Territories' or other non-geographic top-level keys if necessary
+        if (continent === 'Territories' || typeof worldCities[continent] !== 'object') continue;
+
+        for (const country in worldCities[continent]) {
+            if (country === 'metadata' || country === 'population_order' || typeof worldCities[continent][country] !== 'object') continue;
+
+            for (const city in worldCities[continent][country]) {
+                if (city !== 'population_order' && city !== 'metadata') {
+                    const timezone = worldCities[continent][country][city];
+                    if (timezone && typeof timezone === 'string') { // Ensure it's a timezone string
+                        if (!localTimezoneReverseMap[timezone]) { // Keep first encountered
+                            localTimezoneReverseMap[timezone] = { city, country, continent };
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 // Initialize select2 dropdowns
 $(document).ready(function() {
+    buildTimezoneReverseMap(); // Build the map once worldCities is available
+
     const continentSelect = $('#continentSelect');
     const countrySelect = $('#countrySelect');
     const citySelect = $('#citySelect');
@@ -51,7 +96,8 @@ $(document).ready(function() {
     [continentSelect, countrySelect, citySelect].forEach(select => {
         select.select2({
             theme: 'classic',
-            matcher: matchStart
+            matcher: matchStart,
+            width: '180px' // Set Select2 width
         });
     });
 
@@ -156,41 +202,44 @@ $(document).ready(function() {
     });
 
     // Try to load saved location or use default
-    const savedLocation = getLocationFromCookie();
-    if (savedLocation) {
-        // Set saved location programmatically
-        continentSelect.attr('data-programmatic', true)
-            .val(savedLocation.continent)
-            .trigger('change')
-            .removeAttr('data-programmatic');
-            
-        setTimeout(() => {
-            countrySelect.attr('data-programmatic', true)
-                .val(savedLocation.country)
+    // Promise-based functions for setting location programmatically
+    function setContinentProgrammatic(continent) {
+        return new Promise(resolve => {
+            continentSelect.attr('data-programmatic', true)
+                .val(continent)
                 .trigger('change')
                 .removeAttr('data-programmatic');
-                
-            setTimeout(() => {
-                citySelect.val(savedLocation.city).trigger('change');
-            }, 500);
-        }, 500);
+            setTimeout(resolve, 150); // Allow Select2 to process and populate next dropdown
+        });
+    }
+
+    function setCountryProgrammatic(country) {
+        return new Promise(resolve => {
+            countrySelect.attr('data-programmatic', true)
+                .val(country)
+                .trigger('change')
+                .removeAttr('data-programmatic');
+            setTimeout(resolve, 150); // Allow Select2 to process
+        });
+    }
+
+    function setCityProgrammatic(city) {
+        // No promise needed if it's the last step, unless other actions depend on it
+        citySelect.val(city).trigger('change');
+    }
+
+    const savedLocation = getLocationFromCookie();
+    if (savedLocation && savedLocation.continent && savedLocation.country && savedLocation.city) {
+        setContinentProgrammatic(savedLocation.continent)
+            .then(() => setCountryProgrammatic(savedLocation.country))
+            .then(() => setCityProgrammatic(savedLocation.city))
+            .catch(error => console.error("Error setting saved location:", error));
     } else {
         // Set default selection (New York) programmatically
-        continentSelect.attr('data-programmatic', true)
-            .val('North America')
-            .trigger('change')
-            .removeAttr('data-programmatic');
-            
-        setTimeout(() => {
-            countrySelect.attr('data-programmatic', true)
-                .val('United States')
-                .trigger('change')
-                .removeAttr('data-programmatic');
-                
-            setTimeout(() => {
-                citySelect.val('New York').trigger('change');
-            }, 500);
-        }, 500);
+        setContinentProgrammatic('North America')
+            .then(() => setCountryProgrammatic('United States'))
+            .then(() => setCityProgrammatic('New York'))
+            .catch(error => console.error("Error setting default location:", error));
     }
 
     // Set local timezone information
@@ -202,8 +251,12 @@ function updateLocationInfo(continent, country, city) {
     selectedTimezone = countryData[city];
     
     // Update flag
-    const countryCode = countryToCode[country].toLowerCase();
-    $('#selectedFlag').attr('src', `https://flagcdn.com/${countryCode}.svg`);
+    if (countryToCode && countryToCode[country]) { // Check if countryToCode is defined and has the country
+        const countryCode = countryToCode[country].toLowerCase();
+        $('#selectedFlag').attr('src', `https://flagcdn.com/${countryCode}.svg`).attr('alt', `Flag of ${country}`);
+    } else {
+        $('#selectedFlag').attr('src', '').attr('alt', 'Country flag not available'); // Clear flag and set alt text
+    }
     
     // Update city info
     $('#cityInfo').text(`${city}, ${country} (${continent})`);
@@ -299,16 +352,71 @@ function updateInternationalClock(now) {
         hour12: !is24Hour
     };
     
-    // Get local date
-    const localDate = now.getDate();
+    // Get local date parts
+    const localYear = now.getFullYear();
+    const localMonth = now.getMonth(); // 0-indexed
+    const localDay = now.getDate();
+
+    // Get date parts in selected timezone
+    const intlDateFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: selectedTimezone,
+        year: 'numeric',
+        month: 'numeric', // 1-based
+        day: 'numeric',
+        hourCycle: 'h23' // Ensures no AM/PM in parts if only date is needed
+    });
+
+    let intYear, intMonth, intDay;
+    try {
+        const parts = intlDateFormatter.formatToParts(now);
+        for (const part of parts) {
+            if (part.type === 'year') intYear = parseInt(part.value);
+            else if (part.type === 'month') intMonth = parseInt(part.value); // 1-based
+            else if (part.type === 'day') intDay = parseInt(part.value);
+        }
+    } catch (e) {
+        console.error("Error formatting international date parts with timezone:", selectedTimezone, e);
+        // Clear international clock display elements as a fallback
+        $('#intHours, #intMinutes, #intSeconds').text('--');
+        const intAmpmElem = document.getElementById('intAmpm');
+        if (intAmpmElem) $(intAmpmElem).hide();
+        const dayDiffElem = document.getElementById('dayDiff');
+        if (dayDiffElem) $(dayDiffElem).hide();
+        return; // Stop further processing for this clock update
+    }
     
-    // Get date in selected timezone
-    const intDate = new Date(now.toLocaleString('en-US', { timeZone: selectedTimezone })).getDate();
-    
-    // Calculate day difference
-    const dayDiff = intDate - localDate;
-    
-    const timeString = new Intl.DateTimeFormat('en-US', options).format(now);
+    let dayDiff = 0;
+    if (typeof intYear !== 'undefined' && typeof intMonth !== 'undefined' && typeof intDay !== 'undefined') {
+        // Create Date objects at UTC midnight for accurate day comparison
+        const localDateUTC = new Date(Date.UTC(localYear, localMonth, localDay)); 
+        const intDateUTC = new Date(Date.UTC(intYear, intMonth - 1, intDay)); // intMonth is 1-based, so subtract 1
+
+        const diffMilliseconds = intDateUTC.getTime() - localDateUTC.getTime();
+        dayDiff = Math.round(diffMilliseconds / (1000 * 60 * 60 * 24));
+    } else {
+        console.error("Could not determine all date parts for international time using timezone:", selectedTimezone);
+         // Clear international clock display elements as a fallback
+        $('#intHours, #intMinutes, #intSeconds').text('--');
+        const intAmpmElem = document.getElementById('intAmpm');
+        if (intAmpmElem) $(intAmpmElem).hide();
+        const dayDiffElem = document.getElementById('dayDiff');
+        if (dayDiffElem) $(dayDiffElem).hide();
+        return; // Stop further processing for this clock update
+    }
+
+    let timeString;
+    try {
+        timeString = new Intl.DateTimeFormat('en-US', options).format(now);
+    } catch (e) {
+        console.error("Error formatting international time string with timezone:", selectedTimezone, e);
+        // Clear international clock display elements as a fallback
+        $('#intHours, #intMinutes, #intSeconds').text('--');
+        const intAmpmElem = document.getElementById('intAmpm');
+        if (intAmpmElem) $(intAmpmElem).hide();
+        const dayDiffElem = document.getElementById('dayDiff');
+        if (dayDiffElem) $(dayDiffElem).hide();
+        return; // Stop further processing for this clock update
+    }
     const [time, period] = timeString.split(' ');
     const [hours, minutes, seconds] = time.split(':');
     
@@ -334,14 +442,17 @@ function updateInternationalClock(now) {
         return elem;
     })();
     
-    if (dayDiff === 1) {
-        dayDiffElement.textContent = '+1';
-        dayDiffElement.style.display = 'inline';
-    } else if (dayDiff === -1) {
-        dayDiffElement.textContent = '−1';  // Using proper minus sign
-        dayDiffElement.style.display = 'inline';
-    } else {
-        dayDiffElement.style.display = 'none';
+    // Update day difference indicator based on the new dayDiff calculation
+    if (dayDiffElement) { // Ensure element exists
+        if (dayDiff === 1 || dayDiff > 1) {
+            dayDiffElement.textContent = `+${dayDiff}`;
+            dayDiffElement.style.display = 'inline';
+        } else if (dayDiff === -1 || dayDiff < -1) {
+            dayDiffElement.textContent = `${dayDiff}`; 
+            dayDiffElement.style.display = 'inline';
+        } else { // dayDiff is 0
+            dayDiffElement.style.display = 'none';
+        }
     }
 }
 
@@ -363,38 +474,27 @@ updateClock();
 
 function updateLocalTimezoneInfo() {
     const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    let locationInfo = '';
+    const locationData = localTimezoneReverseMap[localTimezone];
 
-    // Find the continent/country/city from our data that matches this timezone
-    for (const continent in worldCities) {
-        for (const country in worldCities[continent]) {
-            for (const city in worldCities[continent][country]) {
-                if (city !== 'population_order' && city !== 'metadata') {
-                    if (worldCities[continent][country][city] === localTimezone) {
-                        locationInfo = `${city}, ${country}`;
-                        document.querySelector('.clock-container:first-child h2').textContent = `Local Time (${locationInfo})`;
-                        
-                        // Show timezone information
-                        const countryData = worldCities[continent][country];
-                        const tzInfo = [];
-                        if (countryData.metadata?.timezone_notes) {
-                            tzInfo.push(countryData.metadata.timezone_notes);
-                        }
-                        if (timeZoneAnomalies[country]) {
-                            tzInfo.push(timeZoneAnomalies[country]);
-                        }
-                        document.getElementById('localLocationInfo').textContent = tzInfo.join(' | ');
-                        return;
-                    }
-                }
-            }
+    if (locationData) {
+        const { city, country, continent } = locationData;
+        const locationInfo = `${city}, ${country}`;
+        document.querySelector('.clock-container:first-child h2').textContent = `Local Time (${locationInfo})`;
+
+        // Show timezone information using data from worldCities
+        const countryEntry = worldCities[continent]?.[country];
+        const tzInfo = [];
+        if (countryEntry?.metadata?.timezone_notes) {
+            tzInfo.push(countryEntry.metadata.timezone_notes);
         }
-    }
-
-    // If we didn't find a match in our data, just show the timezone
-    if (!locationInfo) {
+        // Check if timeZoneAnomalies is defined and has the country
+        if (typeof timeZoneAnomalies !== 'undefined' && timeZoneAnomalies[country]) {
+            tzInfo.push(timeZoneAnomalies[country]);
+        }
+        document.getElementById('localLocationInfo').textContent = tzInfo.join(' | ');
+    } else {
+        // If we didn't find a match in our data, just show the timezone
         document.querySelector('.clock-container:first-child h2').textContent = `Local Time (${localTimezone})`;
-        document.getElementById('localLocationInfo').textContent = 'Local timezone';
+        document.getElementById('localLocationInfo').textContent = 'Local timezone (not in city database)';
     }
 }
-  

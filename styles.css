@@ -1,18 +1,31 @@
+:root {
+    --primary-bg-color: #1a1a1a;
+    --secondary-bg-color: #2d2d2d;
+    --tertiary-bg-color: #363636;
+    --special-bg-color: #404040;
+    --text-color: #fff;
+    --border-radius-default: 0.5rem;
+    --box-shadow-default: 0 0 10px rgba(0, 0, 0, 0.3);
+    --gap-small: 0.75rem;
+    --gap-medium: 1rem;
+    --gap-large: 1.5rem;
+}
+
 body {
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 100vh;
     margin: 0;
-    background-color: #1a1a1a;
+    background-color: var(--primary-bg-color);
     font-family: Arial, sans-serif;
-    padding: 1rem;
+    padding: var(--gap-medium);
 }
 
 .clocks-container {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: var(--gap-large);
     max-width: 800px;
     width: 100%;
 }
@@ -21,40 +34,40 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.75rem;
-    background-color: #2d2d2d;
-    padding: 1rem;
-    border-radius: 0.5rem;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    gap: var(--gap-small);
+    background-color: var(--secondary-bg-color);
+    padding: var(--gap-medium);
+    border-radius: var(--border-radius-default);
+    box-shadow: var(--box-shadow-default);
 }
 
 .clock {
-    background-color: #363636;
-    padding: 1rem 2rem;
-    border-radius: 0.5rem;
-    color: #fff;
+    background-color: var(--tertiary-bg-color);
+    padding: var(--gap-medium) calc(var(--gap-medium) * 2); /* 1rem 2rem */
+    border-radius: var(--border-radius-default);
+    color: var(--text-color);
     font-size: 2.5rem;
     font-weight: bold;
 }
 
 #ampm, #intAmpm {
-    font-size: 1rem;
+    font-size: var(--gap-medium); /* 1rem */
     margin-left: 0.25rem;
 }
 
 #formatToggle {
-    padding: 0.5rem 1rem;
+    padding: 0.5rem var(--gap-medium); /* 0.5rem 1rem */
     font-size: 0.9rem;
-    background-color: #363636;
-    color: #fff;
+    background-color: var(--tertiary-bg-color);
+    color: var(--text-color);
     border: none;
-    border-radius: 0.5rem;
+    border-radius: var(--border-radius-default);
     cursor: pointer;
     transition: background-color 0.3s;
 }
 
 #formatToggle:hover {
-    background-color: #404040;
+    background-color: var(--special-bg-color);
 }
 
 .location-selector {
@@ -67,19 +80,18 @@ body {
 
 .selectors-container {
     display: flex;
-    gap: 0.75rem;
+    gap: var(--gap-small);
     flex-wrap: wrap;
     justify-content: center;
     width: 100%;
     margin-bottom: 0.5rem;
 }
 
-.select2-container {
-    width: 180px !important;
-}
+/* Select2 width is now handled by JS initialization: width: '180px' */
+/* Removed: .select2-container { width: 180px !important; } */
 
 h2 {
-    color: #fff;
+    color: var(--text-color);
     text-align: center;
     margin: 0;
     font-size: 1.2rem;
@@ -89,16 +101,16 @@ h2 {
 .location-details {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.75rem;
+    gap: var(--gap-small);
     width: 100%;
     margin-top: 0.5rem;
 }
 
 .info-box {
-    background-color: #363636;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-    color: #fff;
+    background-color: var(--tertiary-bg-color);
+    padding: 0.5rem var(--gap-small); /* 0.5rem 0.75rem */
+    border-radius: var(--border-radius-default);
+    color: var(--text-color);
     font-size: 0.8rem;
     text-align: center;
 }
@@ -109,13 +121,13 @@ h2 {
 
 #specialNotes {
     grid-column: 1 / -1;
-    background-color: #404040;
+    background-color: var(--special-bg-color);
     font-style: italic;
 }
 
 #cityInfo {
-    font-size: 1rem;
-    color: #fff;
+    font-size: var(--gap-medium); /* 1rem */
+    color: var(--text-color);
     font-weight: bold;
     text-align: center;
     margin: 0;
@@ -124,15 +136,15 @@ h2 {
 .metadata-container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.75rem;
+    gap: var(--gap-small);
     width: 100%;
 }
 
 #localLocationInfo {
-    background-color: #363636;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-    color: #fff;
+    background-color: var(--tertiary-bg-color);
+    padding: 0.5rem var(--gap-small); /* 0.5rem 0.75rem */
+    border-radius: var(--border-radius-default);
+    color: var(--text-color);
     font-size: 0.8rem;
     text-align: center;
     width: 50%;
@@ -160,14 +172,30 @@ h2 {
         align-items: center;
     }
     
+    /* Attempting to remove !important. Select2 should be responsive by default if parent is.
+       The JS sets initial width to 180px. Here we want it to be 100% of its container.
+       Select2 JS option `width: 'style'` or `width: 'resolve'` might be needed if this doesn't work.
+       For now, relying on CSS specificity and Select2's behavior.
+    */
     .select2-container {
-        width: 100% !important;
+        width: 100%; 
         max-width: 300px;
     }
     
     .clock {
         font-size: 2rem;
-        padding: 0.75rem 1.5rem;
+        padding: var(--gap-small) var(--gap-large); /* 0.75rem 1.5rem */
     }
 }
- 
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

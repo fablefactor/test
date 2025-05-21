@@ -14,12 +14,12 @@
         <div class="clock-container">
             <h2>Local Time</h2>
             <div class="clock">
-                <span id="hours">00</span>:
-                <span id="minutes">00</span>:
-                <span id="seconds">00</span>
-                <span id="ampm">AM</span>
+                <span id="hours" aria-live="polite">00</span>:
+                <span id="minutes" aria-live="polite">00</span>:
+                <span id="seconds" aria-live="polite">00</span>
+                <span id="ampm" aria-live="polite">AM</span>
             </div>
-            <div id="localLocationInfo" class="info-box"></div>
+            <div id="localLocationInfo" class="info-box" aria-live="polite"></div>
             <button id="formatToggle">Switch to 24H</button>
         </div>
 
@@ -27,34 +27,38 @@
             <div class="location-selector">
                 <img id="selectedFlag" src="" alt="Country flag" width="30">
                 <div class="selectors-container">
+                    <label for="continentSelect" class="visually-hidden">Select Continent/Region</label>
                     <select id="continentSelect" style="width: 200px;">
                         <option value="">Select Continent/Region</option>
                     </select>
+                    <label for="countrySelect" class="visually-hidden">Select Country</label>
                     <select id="countrySelect" style="width: 200px;" disabled>
                         <option value="">Select Country</option>
                     </select>
+                    <label for="citySelect" class="visually-hidden">Select City</label>
                     <select id="citySelect" style="width: 200px;" disabled>
                         <option value="">Select City</option>
                     </select>
                 </div>
             </div>
             <div class="clock">
-                <span id="intHours">00</span>:
-                <span id="intMinutes">00</span>:
-                <span id="intSeconds">00</span>
-                <span id="intAmpm">AM</span>
+                <span id="intHours" aria-live="polite">00</span>:
+                <span id="intMinutes" aria-live="polite">00</span>:
+                <span id="intSeconds" aria-live="polite">00</span>
+                <span id="intAmpm" aria-live="polite">AM</span>
+                <!-- dayDiff span is added here by script.js, will add aria-live via JS -->
             </div>
-            <div id="cityInfo" class="info-box"></div>
+            <div id="cityInfo" class="info-box" aria-live="polite"></div>
             <div class="location-details">
-                <div id="timezoneInfo" class="info-box"></div>
-                <div id="regionInfo" class="info-box"></div>
-                <div id="populationInfo" class="info-box"></div>
+                <div id="timezoneInfo" class="info-box" aria-live="polite"></div>
+                <div id="regionInfo" class="info-box" aria-live="polite"></div>
+                <div id="populationInfo" class="info-box" aria-live="polite"></div>
             </div>
-            <div id="specialNotes" class="info-box"></div>
+            <div id="specialNotes" class="info-box" aria-live="polite"></div>
             <div class="metadata-container">
-                <div id="administrativeInfo" class="info-box"></div>
-                <div id="geographicalInfo" class="info-box"></div>
-                <div id="timezoneCases" class="info-box"></div>
+                <div id="administrativeInfo" class="info-box" aria-live="polite"></div>
+                <div id="geographicalInfo" class="info-box" aria-live="polite"></div>
+                <div id="timezoneCases" class="info-box" aria-live="polite"></div>
             </div>
         </div>
     </div>
