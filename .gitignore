@@ -1,0 +1,34 @@
+# Operating System Files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Editor & IDE specific files
+.vscode/
+*.code-workspace
+*.idea/
+*.project
+*.classpath
+*.cproject
+*.launch
+*.settings
+*.tmPreferences
+*.sublime-project
+*.sublime-workspace
+
+# Log files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependency directories (if ever used)
+node_modules/
+jspm_packages/
+bower_components/
+
+# Build output (if ever used)
+dist/
+build/
+out/
+target/

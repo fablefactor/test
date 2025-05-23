@@ -325,8 +325,7 @@ const worldCities = {
             population_order: ['Omdurman', 'Khartoum', 'Port Sudan'],
             metadata: {
                 largest_city: 'Omdurman',
-                timezone_notes: 'CAT (Central Africa Time)',
-                special_status: 'Largest country in Africa'
+                timezone_notes: 'CAT (Central Africa Time)'
             }
         },
         'Angola': {
@@ -619,7 +618,7 @@ const worldCities = {
             population_order: ['Windhoek', 'Walvis Bay', 'Swakopmund'],
             metadata: {
                 largest_city: 'Windhoek',
-                timezone_notes: 'CAT/WAT (Changes between Central and West African Time)',
+                timezone_notes: 'CAT (Central Africa Time), UTC+2 year-round',
                 special_status: 'Least densely populated country in Africa'
             }
         },
@@ -894,9 +893,9 @@ const worldCities = {
                     'WIT': 'Asia/Jayapura'
                 },
                 timezone_populations: {
-                    'Jakarta': '10.6M',
-                    'Makassar': '1.5M',
-                    'Jayapura': '256K'
+                    'Jakarta': 10600000,
+                    'Makassar': 1500000,
+                    'Jayapura': 256000
                 }
             }
         },
@@ -1171,14 +1170,14 @@ const worldCities = {
             }
         },
         'Kazakhstan': {
-            'Almaty': 'Asia/Almaty',
-            'Nur-Sultan': 'Asia/Almaty', // formerly Astana
-            'Shymkent': 'Asia/Almaty',
-            'Karaganda': 'Asia/Almaty',
+            'Almaty': 'Asia/Qyzylorda',
+            'Nur-Sultan': 'Asia/Qyzylorda', // formerly Astana
+            'Shymkent': 'Asia/Qyzylorda',
+            'Karaganda': 'Asia/Qyzylorda',
             population_order: ['Almaty', 'Nur-Sultan', 'Shymkent'],
             metadata: {
                 largest_city: 'Almaty',
-                timezone_notes: 'Multiple time zones',
+                timezone_notes: 'Unified to UTC+5 (effective March 2024). All cities use a UTC+5 IANA zone.',
                 special_status: 'Largest landlocked country in the world'
             }
         },
