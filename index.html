@@ -89,6 +89,56 @@ const PRON_SENTENCES = {
   ],
 };
 
+/* ══ Placement Test Questions ═══════════════════════════════ */
+const PLACEMENT_QS = [
+  // A1
+  {q:"What ___ your name?",opts:["is","are","am","have"],ans:0,level:"A1"},
+  {q:"I have ___ older sister.",opts:["a","an","the","—"],ans:0,level:"A1"},
+  {q:"She ___ to school every day.",opts:["go","goes","going","gone"],ans:1,level:"A1"},
+  {q:"The bank is ___ the post office. (directly across the road)",opts:["next to","opposite","between","behind"],ans:1,level:"A1"},
+  {q:"How ___ does this cost?",opts:["much","many","old","far"],ans:0,level:"A1"},
+  {q:"'Half past seven' means:",opts:["7:00","7:15","7:30","7:45"],ans:2,level:"A1"},
+  {q:"I ___ drink coffee — I prefer tea.",opts:["always","never","sometimes","still"],ans:1,level:"A1"},
+  // A2
+  {q:"Yesterday she ___ to the cinema.",opts:["go","goes","went","has gone"],ans:2,level:"A2"},
+  {q:"We ___ go to school last Monday — it was a holiday.",opts:["didn't","don't","not","haven't"],ans:0,level:"A2"},
+  {q:"How long ___ you had this cough?",opts:["have","did","do","are"],ans:0,level:"A2"},
+  {q:"She works ___ a nurse at the hospital.",opts:["like","for","as","in"],ans:2,level:"A2"},
+  {q:"'A return ticket' means you:",opts:["travel one way only","travel there and back","get a refund","upgrade to first class"],ans:1,level:"A2"},
+  {q:"We ___ visit my parents next weekend. (plan already booked)",opts:["will","are going to","shall","would"],ans:1,level:"A2"},
+  {q:"'Do you have this in a larger ___?' (clothing shop)",opts:["price","colour","size","model"],ans:2,level:"A2"},
+  // B1
+  {q:"Direct: 'I am happy.' → Reported: 'She said she ___ happy.'",opts:["is","was","were","has been"],ans:1,level:"B1"},
+  {q:"'I was walking home when I ___ a loud noise.' (main event)",opts:["heard","was hearing","had heard","hear"],ans:0,level:"B1"},
+  {q:"'If I ___ more money, I would buy a house.' (second conditional)",opts:["have","had","would have","having"],ans:1,level:"B1"},
+  {q:"You know the recipient's name. You end the formal email with:",opts:["Yours faithfully,","Yours sincerely,","Best wishes,","Cheers,"],ans:1,level:"B1"},
+  {q:"'___ my opinion, we should invest more in public transport.'",opts:["In","From","By","With"],ans:0,level:"B1"},
+  {q:"'By the time we arrived, the train ___.' (left before we got there)",opts:["left","was leaving","had left","has left"],ans:2,level:"B1"},
+];
+
+/* ══ Streak Tracking ════════════════════════════════════════ */
+const todayStr=()=>new Date().toISOString().slice(0,10);
+function loadStreak(){ try{ const v=localStorage.getItem('ptb1:streak'); return v?JSON.parse(v):{streak:0,best:0,last:null}; }catch{ return{streak:0,best:0,last:null}; } }
+function touchStreak(){
+  const s=loadStreak(); const today=todayStr();
+  if(s.last===today) return s;
+  const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
+  const ns=(s.last===yesterday)?s.streak+1:1;
+  const updated={streak:ns,best:Math.max(ns,s.best||0),last:today};
+  try{ localStorage.setItem('ptb1:streak',JSON.stringify(updated)); }catch{}
+  return updated;
+}
+
+/* ══ Wrong Answer Tracking ══════════════════════════════════ */
+function getWrongs(){ try{ const v=localStorage.getItem('ptb1:wrongs'); return v?JSON.parse(v):[]; }catch{ return[]; } }
+function addWrong(topicId,qi){
+  const ws=getWrongs(); const idx=ws.findIndex(w=>w.topicId===topicId&&w.qi===qi);
+  if(idx>=0){ws[idx].count++;ws[idx].last=Date.now();}else{ws.push({topicId,qi,count:1,last:Date.now()});}
+  try{ localStorage.setItem('ptb1:wrongs',JSON.stringify(ws)); }catch{}
+}
+function clearWrong(topicId,qi){ try{ localStorage.setItem('ptb1:wrongs',JSON.stringify(getWrongs().filter(w=>!(w.topicId===topicId&&w.qi===qi)))); }catch{} }
+function getTopWrongs(n=12){ return getWrongs().sort((a,b)=>b.count-a.count).slice(0,n); }
+
 /* ══ Spaced Repetition (Leitner) ═══════════════════════════ */
 const BOX_INTERVALS = [0, 1, 60*12, 60*24, 60*24*3, 60*24*7]; // minutes
 
@@ -180,6 +230,81 @@ function Badge({color,bg,children}){
   return <span style={{background:bg,color,fontSize:12,fontWeight:800,padding:'3px 10px',borderRadius:99}}>{children}</span>;
 }
 
+/* ══ Placement Test ══════════════════════════════════════════ */
+function PlacementTest({onDone}){
+  const[qi,setQi]=useState(0);
+  const[picked,setPicked]=useState(null);
+  const[checked,setChecked]=useState(false);
+  const[answers,setAnswers]=useState([]);
+
+  const q=PLACEMENT_QS[qi];
+  const last=qi===PLACEMENT_QS.length-1;
+  const isRight=picked===q.ans;
+
+  const doCheck=()=>setChecked(true);
+
+  const doNext=()=>{
+    const newAnswers=[...answers,{level:q.level,correct:picked===q.ans}];
+    if(last){
+      const by={A1:{ok:0,tot:0},A2:{ok:0,tot:0},B1:{ok:0,tot:0}};
+      newAnswers.forEach(a=>{by[a.level].tot++;if(a.correct)by[a.level].ok++;});
+      const pct=lv=>by[lv].tot>0?by[lv].ok/by[lv].tot*100:0;
+      let lv='A1';
+      if(pct('A1')>=60&&pct('A2')>=60)lv='B1';
+      else if(pct('A1')>=60)lv='A2';
+      try{localStorage.setItem('ptb1:placementDone','1');}catch{}
+      onDone(lv);
+    }else{
+      setAnswers(newAnswers);
+      setQi(qi+1);
+      setPicked(null);
+      setChecked(false);
+    }
+  };
+
+  const lvCol={A1:C.teal,A2:'#9A6B12',B1:C.purple};
+  return(
+    <div>
+      <div style={{textAlign:'center',padding:'28px 0 18px'}}>
+        <div style={{fontSize:44,marginBottom:10}}>🎯</div>
+        <h1 style={{margin:0,fontSize:24,fontWeight:800,color:C.teal}}>Placement Test</h1>
+        <div style={{color:C.sub,fontSize:14,marginTop:4}}>Let's find your starting level — {PLACEMENT_QS.length} quick questions</div>
+      </div>
+      <div style={{marginBottom:8}}><ProgBar value={qi} max={PLACEMENT_QS.length}/></div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <div style={{fontSize:13,color:C.sub,fontWeight:600}}>{qi+1} / {PLACEMENT_QS.length}</div>
+        <Badge color={lvCol[q.level]} bg={q.level==='A1'?C.tealSoft:q.level==='A2'?C.amberSoft:C.purpleSoft}>{q.level}</Badge>
+      </div>
+      <div style={{...S.card,marginBottom:14}}>
+        <div style={{fontWeight:700,fontSize:17,lineHeight:1.5}}>{q.q}</div>
+      </div>
+      <div style={{display:'grid',gap:8,marginBottom:14}}>
+        {q.opts.map((op,i)=>{
+          let bg=C.card,bdr=C.line;
+          if(checked&&i===q.ans){bg=C.greenSoft;bdr=C.green;}
+          else if(checked&&i===picked&&!isRight){bg=C.coralSoft;bdr=C.coral;}
+          else if(!checked&&i===picked){bg=C.tealSoft;bdr=C.teal;}
+          return(
+            <button key={i} disabled={checked} onClick={()=>setPicked(i)}
+              style={{background:bg,border:`2px solid ${bdr}`,borderRadius:12,padding:'12px 14px',textAlign:'left',fontSize:16,fontWeight:600,cursor:checked?'default':'pointer',fontFamily:FONT}}>
+              {op}
+            </button>
+          );
+        })}
+      </div>
+      {!checked?(
+        <button disabled={picked==null} onClick={doCheck}
+          style={{...S.btn(picked==null?C.line:C.teal,'#fff',picked==null),width:'100%'}}>Check</button>
+      ):(
+        <button onClick={doNext}
+          style={{...S.btn(C.teal),width:'100%'}}>{last?'See my level →':'Next →'}</button>
+      )}
+      <button onClick={()=>{try{localStorage.setItem('ptb1:placementDone','1');}catch{}onDone('A1');}}
+        style={{...S.ghost,width:'100%',marginTop:10,fontSize:13}}>Skip — start from A1</button>
+    </div>
+  );
+}
+
 /* ══ Level Path ══════════════════════════════════════════════ */
 function LevelPath({level,setLevel,completed}){
   return(
@@ -206,13 +331,15 @@ function LevelPath({level,setLevel,completed}){
 }
 
 /* ══ Home ════════════════════════════════════════════════════ */
-function HomeScreen({level,setLevel,xp,completed,dueCount,onNav}){
+function HomeScreen({level,setLevel,xp,completed,dueCount,streak,weakCount,onNav}){
   const modes=[
     {id:'lessons',icon:'📚',title:'Lessons',desc:'Theory → Examples → Quiz',col:C.teal,bg:C.tealSoft},
     {id:'cards',icon:'🃏',title:'Flashcards',desc:`Spaced repetition${dueCount>0?` · ${dueCount} due`:''}`,col:C.purple,bg:C.purpleSoft,badge:dueCount||null},
     {id:'pron',icon:'🎤',title:'Pronunciation',desc:'Speak & see your score',col:C.amber,bg:C.amberSoft},
-    {id:'progress',icon:'📊',title:'Progress',desc:'Your stats & mastery',col:C.coral,bg:C.coralSoft},
+    {id:'weakpoints',icon:'🎯',title:'Weak Points',desc:'Drill your missed questions',col:C.coral,bg:C.coralSoft,badge:weakCount||null},
+    {id:'progress',icon:'📊',title:'Progress',desc:'Your stats & mastery',col:C.sub,bg:C.line},
   ];
+  const stk=streak||{streak:0,best:0};
   return(
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
@@ -220,7 +347,10 @@ function HomeScreen({level,setLevel,xp,completed,dueCount,onNav}){
           <h1 style={{margin:0,fontSize:27,fontWeight:800,letterSpacing:-0.5,color:C.teal}}>Pathway to B1</h1>
           <div style={{color:C.sub,fontSize:14,marginTop:2}}>Your English journey, one level at a time</div>
         </div>
-        <div style={{background:C.amberSoft,color:'#9A6B12',fontWeight:800,borderRadius:99,padding:'6px 12px',fontSize:14,whiteSpace:'nowrap',flexShrink:0}}>⭐ {xp} XP</div>
+        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6,flexShrink:0}}>
+          <div style={{background:C.amberSoft,color:'#9A6B12',fontWeight:800,borderRadius:99,padding:'6px 12px',fontSize:14,whiteSpace:'nowrap'}}>⭐ {xp} XP</div>
+          {stk.streak>0&&<div style={{background:'#FFF0E8',color:'#C05000',fontWeight:800,borderRadius:99,padding:'4px 10px',fontSize:13,whiteSpace:'nowrap'}}>🔥 {stk.streak} day{stk.streak!==1?'s':''}</div>}
+        </div>
       </div>
       <div style={{margin:'16px 0'}}><LevelPath level={level} setLevel={setLevel} completed={completed}/></div>
       <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',margin:'18px 0 10px'}}>Practice modes</div>
@@ -354,7 +484,7 @@ function LessonFlow({topicId,onBack,onComplete,addXP}){
         )}
         <div style={{marginTop:14}}>
           {!checked?(
-            <button disabled={picked==null} onClick={()=>{setChecked(true);if(picked===ex.correct)setRight(r=>r+1);}}
+            <button disabled={picked==null} onClick={()=>{setChecked(true);if(picked===ex.correct){setRight(r=>r+1);clearWrong(topicId,qi);}else{addWrong(topicId,qi);}}}
               style={{...S.btn(picked==null?C.line:C.teal,'#fff',picked==null),width:'100%'}}>Check</button>
           ):(
             <button onClick={()=>{ if(qi+1<tp.quiz.length){setQi(qi+1);setPicked(null);setChecked(false);}else setStep('done'); }}
@@ -487,6 +617,87 @@ function FlashcardDeck({topicId,addXP,onBack}){
   );
 }
 
+/* ══ Weak Points ═════════════════════════════════════════════ */
+function WeakPointsScreen({onBack}){
+  const[list]=useState(()=>getTopWrongs(12));
+  const[idx,setIdx]=useState(0);
+  const[picked,setPicked]=useState(null);
+  const[checked,setChecked]=useState(false);
+
+  if(list.length===0) return(
+    <div>
+      <BackBar title="Weak Points" onBack={onBack}/>
+      <div style={{...S.card,textAlign:'center',padding:40}}>
+        <div style={{fontSize:52,marginBottom:12}}>✨</div>
+        <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>No weak points yet!</div>
+        <div style={{color:C.sub,fontSize:14,marginBottom:20}}>Complete some quizzes — missed questions will appear here for extra practice.</div>
+        <button onClick={onBack} style={{...S.btn(C.teal),width:'100%'}}>Back to home</button>
+      </div>
+    </div>
+  );
+
+  if(idx>=list.length) return(
+    <div>
+      <BackBar title="Weak Points" onBack={onBack}/>
+      <div style={{...S.card,textAlign:'center',padding:40}}>
+        <div style={{fontSize:52,marginBottom:12}}>🎉</div>
+        <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>All done!</div>
+        <div style={{color:C.sub,fontSize:14,marginBottom:20}}>Great work — all weak points reviewed this session!</div>
+        <button onClick={onBack} style={{...S.btn(C.teal),width:'100%'}}>Back to home</button>
+      </div>
+    </div>
+  );
+
+  const w=list[idx];
+  const tp=CURRICULUM[w.topicId];
+  const qdata=tp&&tp.quiz[w.qi];
+  if(!tp||!qdata) return null;
+
+  const isRight=picked===qdata.correct;
+
+  return(
+    <div>
+      <BackBar title="Weak Points" onBack={onBack}/>
+      <div style={{...S.card,background:C.coralSoft,border:'none',padding:'10px 14px',marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:13,color:C.coral}}>{w.count}× missed · {tp.icon} {tp.title}</div>
+      </div>
+      <div style={{marginBottom:12}}><ProgBar value={idx} max={list.length} color={C.coral}/></div>
+      <div style={{...S.card,marginBottom:14}}>
+        <div style={{fontWeight:700,fontSize:17,lineHeight:1.5}}>{qdata.q}</div>
+      </div>
+      <div style={{display:'grid',gap:8}}>
+        {qdata.options.map((op,i)=>{
+          let bg=C.card,bdr=C.line;
+          if(checked&&i===qdata.correct){bg=C.greenSoft;bdr=C.green;}
+          else if(checked&&i===picked&&!isRight){bg=C.coralSoft;bdr=C.coral;}
+          else if(!checked&&i===picked){bg=C.tealSoft;bdr=C.teal;}
+          return(
+            <button key={i} disabled={checked} onClick={()=>setPicked(i)}
+              style={{background:bg,border:`2px solid ${bdr}`,borderRadius:12,padding:'12px 14px',textAlign:'left',fontSize:16,fontWeight:600,cursor:checked?'default':'pointer',fontFamily:FONT}}>
+              {op}
+            </button>
+          );
+        })}
+      </div>
+      {checked&&(
+        <div style={{...S.card,marginTop:12,background:isRight?C.greenSoft:C.coralSoft,border:'none'}}>
+          <div style={{fontWeight:800,color:isRight?C.green:C.coral}}>{isRight?'✓ Correct!':'✗ Not quite.'}</div>
+          <div style={{fontSize:14,marginTop:4,lineHeight:1.5}}>{qdata.explain}</div>
+        </div>
+      )}
+      <div style={{marginTop:14}}>
+        {!checked?(
+          <button disabled={picked==null} onClick={()=>setChecked(true)}
+            style={{...S.btn(picked==null?C.line:C.coral,'#fff',picked==null),width:'100%'}}>Check</button>
+        ):(
+          <button onClick={()=>{if(isRight)clearWrong(w.topicId,w.qi);setIdx(i=>i+1);setPicked(null);setChecked(false);}}
+            style={{...S.btn(C.teal),width:'100%'}}>{idx+1<list.length?'Next →':'Finish →'}</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ══ Pronunciation ═══════════════════════════════════════════ */
 function PronScreen({level,addXP,onBack}){
   const sentences=PRON_SENTENCES[level];
@@ -534,10 +745,11 @@ function PronScreen({level,addXP,onBack}){
 }
 
 /* ══ Progress ════════════════════════════════════════════════ */
-function ProgressScreen({xp,completed,onBack}){
+function ProgressScreen({xp,completed,streak,onBack}){
   const all=Object.keys(CURRICULUM);
   const totalCards=all.reduce((s,id)=>s+CURRICULUM[id].flashcards.length,0);
   const masteredCards=all.reduce((s,id)=>s+getMastery(id),0);
+  const stk=streak||{streak:0,best:0};
   return(
     <div>
       <BackBar title="Progress" onBack={onBack}/>
@@ -547,6 +759,8 @@ function ProgressScreen({xp,completed,onBack}){
           {label:'Topics done',val:`${(completed||[]).length}/${all.length}`,icon:'📚',col:C.teal,bg:C.tealSoft},
           {label:'Cards mastered',val:`${masteredCards}/${totalCards}`,icon:'🃏',col:C.purple,bg:C.purpleSoft},
           {label:'Cards due now',val:`${allDue()}`,icon:'🔔',col:C.coral,bg:C.coralSoft},
+          {label:'Current streak',val:`${stk.streak} day${stk.streak!==1?'s':''}`,icon:'🔥',col:'#C05000',bg:'#FFF0E8'},
+          {label:'Best streak',val:`${stk.best} day${stk.best!==1?'s':''}`,icon:'🏆',col:C.amber,bg:C.amberSoft},
         ].map(s=>(
           <div key={s.label} style={{...S.card,background:s.bg,border:'none',textAlign:'center',padding:'16px 12px'}}>
             <div style={{fontSize:28,marginBottom:4}}>{s.icon}</div>
@@ -584,24 +798,35 @@ function ProgressScreen({xp,completed,onBack}){
 /* ══ App Root ════════════════════════════════════════════════ */
 function App(){
   const[screen,setScreen]=useState('home');
-  const[level,setLevel]=useState('A1');
+  const[level,setLevelState]=useState(()=>{ try{return localStorage.getItem('ptb1:level')||'A1';}catch{return'A1';} });
   const[st,setSt]=useState(()=>loadApp()||{xp:0,completed:[]});
   const[dueCount,setDueCount]=useState(()=>allDue());
+  const[streak,setStreak]=useState(()=>loadStreak());
+  const[weakCount,setWeakCount]=useState(()=>getTopWrongs(12).length);
+  const[showPlacement,setShowPlacement]=useState(()=>{ try{return!localStorage.getItem('ptb1:placementDone');}catch{return false;} });
 
   useEffect(()=>saveApp(st),[st]);
-  useEffect(()=>setDueCount(allDue()),[screen]);
+  useEffect(()=>{ setDueCount(allDue()); setWeakCount(getTopWrongs(12).length); },[screen]);
 
-  const addXP=n=>setSt(s=>({...s,xp:(s.xp||0)+n}));
+  const setLevel=(lv)=>{ setLevelState(lv); try{localStorage.setItem('ptb1:level',lv);}catch{} };
+  const addXP=n=>{ setSt(s=>({...s,xp:(s.xp||0)+n})); setStreak(touchStreak()); };
   const completeTopic=id=>setSt(s=>({...s,completed:s.completed.includes(id)?s.completed:[...s.completed,id]}));
+
+  if(showPlacement) return(
+    <div style={S.page}><div style={S.shell}>
+      <PlacementTest onDone={(lv)=>{ setLevel(lv); setShowPlacement(false); }}/>
+    </div></div>
+  );
 
   return(
     <div style={S.page}>
       <div style={S.shell}>
-        {screen==='home'&&<HomeScreen level={level} setLevel={setLevel} xp={st.xp} completed={st.completed} dueCount={dueCount} onNav={setScreen}/>}
+        {screen==='home'&&<HomeScreen level={level} setLevel={setLevel} xp={st.xp} completed={st.completed} dueCount={dueCount} streak={streak} weakCount={weakCount} onNav={setScreen}/>}
         {screen==='lessons'&&<LessonsScreen level={level} completed={st.completed} onComplete={(id,score)=>{completeTopic(id);addXP(score*10);}} addXP={addXP} onBack={()=>setScreen('home')}/>}
         {screen==='cards'&&<FlashcardsScreen level={level} addXP={addXP} onBack={()=>setScreen('home')}/>}
         {screen==='pron'&&<PronScreen level={level} addXP={addXP} onBack={()=>setScreen('home')}/>}
-        {screen==='progress'&&<ProgressScreen xp={st.xp} completed={st.completed} onBack={()=>setScreen('home')}/>}
+        {screen==='progress'&&<ProgressScreen xp={st.xp} completed={st.completed} streak={streak} onBack={()=>setScreen('home')}/>}
+        {screen==='weakpoints'&&<WeakPointsScreen onBack={()=>{ setWeakCount(getTopWrongs(12).length); setScreen('home'); }}/>}
       </div>
     </div>
   );
