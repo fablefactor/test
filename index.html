@@ -122,7 +122,7 @@ function loadStreak(){ try{ const v=localStorage.getItem('ptb1:streak'); return 
 function touchStreak(){
   const s=loadStreak(); const today=todayStr();
   if(s.last===today) return s;
-  const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
+  const yd=new Date(today); yd.setDate(yd.getDate()-1); const yesterday=yd.toISOString().slice(0,10);
   const ns=(s.last===yesterday)?s.streak+1:1;
   const updated={streak:ns,best:Math.max(ns,s.best||0),last:today};
   try{ localStorage.setItem('ptb1:streak',JSON.stringify(updated)); }catch{}
@@ -270,7 +270,7 @@ function PlacementTest({onDone}){
         <h1 style={{margin:0,fontSize:24,fontWeight:800,color:C.teal}}>Placement Test</h1>
         <div style={{color:C.sub,fontSize:14,marginTop:4}}>Let's find your starting level — {PLACEMENT_QS.length} quick questions</div>
       </div>
-      <div style={{marginBottom:8}}><ProgBar value={qi} max={PLACEMENT_QS.length}/></div>
+      <div style={{marginBottom:8}}><ProgBar value={qi+1} max={PLACEMENT_QS.length}/></div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
         <div style={{fontSize:13,color:C.sub,fontWeight:600}}>{qi+1} / {PLACEMENT_QS.length}</div>
         <Badge color={lvCol[q.level]} bg={q.level==='A1'?C.tealSoft:q.level==='A2'?C.amberSoft:C.purpleSoft}>{q.level}</Badge>
@@ -458,7 +458,7 @@ function LessonFlow({topicId,onBack,onComplete,addXP}){
     return(
       <div>
         <BackBar title={`Q${qi+1} of ${tp.quiz.length}`} onBack={()=>setStep('examples')}/>
-        <div style={{marginBottom:12}}><ProgBar value={qi} max={tp.quiz.length}/></div>
+        <div style={{marginBottom:12}}><ProgBar value={qi+1} max={tp.quiz.length}/></div>
         <div style={{...S.card,marginBottom:14}}>
           <div style={{fontWeight:700,fontSize:17,lineHeight:1.5}}>{ex.q}</div>
         </div>
@@ -505,7 +505,7 @@ function LessonFlow({topicId,onBack,onComplete,addXP}){
         <div style={{fontSize:22,fontWeight:800,margin:'12px 0 4px'}}>{right}/{total} correct</div>
         <div style={{color:C.sub,fontSize:14,marginBottom:20}}>{passed?'Well done! Lesson complete.':'Keep practising — you need 60% to pass.'}</div>
         {passed?(
-          <button onClick={()=>{addXP(earned);onComplete(right);}} style={{...S.btn(C.teal),width:'100%'}}>
+          <button onClick={()=>onComplete(right)} style={{...S.btn(C.teal),width:'100%'}}>
             Finish &amp; earn {earned} XP
           </button>
         ):(
@@ -589,7 +589,7 @@ function FlashcardDeck({topicId,addXP,onBack}){
         </div>
       </div>
       <ProgBar value={idx} max={session.length} color={C.purple}/>
-      <div style={{marginTop:12}} className="fc-scene" onClick={()=>setFlipped(f=>!f)}>
+      <div style={{marginTop:12}} className="fc-scene" role="button" tabIndex={0} aria-label="Flip card" onClick={()=>setFlipped(f=>!f)} onKeyDown={e=>(e.key==='Enter'||e.key===' ')&&setFlipped(f=>!f)}>
         <div className={`fc-card${flipped?' flipped':''}`}>
           <div className="fc-face" style={{background:C.card}}>
             <div style={{fontSize:11,fontWeight:700,letterSpacing:1,color:C.sub,textTransform:'uppercase',marginBottom:12}}>English</div>

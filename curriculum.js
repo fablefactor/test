@@ -115,7 +115,7 @@ const CURRICULUM = {
     examples: [
       { en: "I have one brother and two sisters.", da: "Jeg har en bror og to søstre." },
       { en: "My mother is a teacher. She has brown hair.", da: "Min mor er lærer. Hun har brunt hår." },
-      { en: "Her grandfather is eighty years old.", da: "Hendes bedstefar er irs år gammel." },
+      { en: "Her grandfather is eighty years old.", da: "Hendes bedstefar er firs år gammel." },
       { en: "We have three children: two sons and one daughter.", da: "Vi har tre børn: to sønner og en datter." },
       { en: "This is my wife, Julia. She is from Spain.", da: "Dette er min hustru, Julia. Hun er fra Spanien." },
       { en: "My parents live in a small town near Copenhagen.", da: "Mine forældre bor i en lille by nær København." },
