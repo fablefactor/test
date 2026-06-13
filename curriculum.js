@@ -183,7 +183,7 @@ const CURRICULUM = {
     ],
     quiz: [
       { q: "Which noun is uncountable?", options: ["egg", "apple", "milk", "sandwich"], correct: 2, explain: "Milk is uncountable — you cannot say 'a milk' or 'two milks'. Use 'some milk'." },
-      { q: "Complete: 'I'd like ___ coffee, please.'", options: ["a", "some", "an", "any"], correct: 0, explain: "Coffee is countable when you order one cup: 'a coffee'. Use 'some' for uncountable milk, water, etc." },
+      { q: "Complete: 'I'd like ___ coffee, please.' (ordering one cup)", options: ["a", "the", "an", "any"], correct: 0, explain: "'A coffee' means one cup — coffee is countable when ordering a portion. 'The coffee' refers to a specific one already mentioned. 'An' is only before vowel sounds. 'Any' is for negatives and questions." },
       { q: "'Can I have the menu?' — this person wants to:", options: ["pay the bill", "see what food is available", "order coffee", "leave the restaurant"], correct: 1, explain: "The menu lists all available food and drinks." },
       { q: "Which is the correct negative with an uncountable noun?", options: ["I don't have some bread.", "I don't have any bread.", "I don't have a bread.", "I don't have breads."], correct: 1, explain: "Use 'any' in negatives with uncountable nouns: 'I don't have any bread.'" },
       { q: "'Would you like some more?' — the speaker is:", options: ["asking for more food", "offering more food", "ordering food", "paying the bill"], correct: 1, explain: "'Would you like some more?' is an offer, not a request." },
@@ -371,7 +371,7 @@ const CURRICULUM = {
       { front: "I'm looking for…", back: "Jeg leder efter…" },
     ],
     quiz: [
-      { q: "'How much ___ this jacket?' (asking the price of one item)", options: ["cost", "costs", "is", "does"], correct: 2, explain: "'How much is this?' is the most natural way. 'How much does this cost?' also works." },
+      { q: "'How much ___ this jacket?' (asking the price of one item)", options: ["cost", "costs", "is", "does"], correct: 2, explain: "'How much is this jacket?' is the standard short form and grammatically complete. 'Does' alone leaves the sentence incomplete — you would need to add 'cost' at the end: 'How much does this jacket cost?'" },
       { q: "'Do you have this in a larger ___?'", options: ["price", "colour", "size", "model"], correct: 2, explain: "We ask for a different 'size' when clothes don't fit." },
       { q: "You want to pay without using cash. You:", options: ["ask for a receipt", "pay by card", "ask for a discount", "try it on"], correct: 1, explain: "Paying by card is the alternative to paying with cash." },
       { q: "20% off the original price means:", options: ["you pay 20% more", "you pay 20% less", "you get £20 back", "the item costs £20"], correct: 1, explain: "A 20% discount means the price is reduced by 20%." },
@@ -842,7 +842,7 @@ const CURRICULUM = {
       { front: "Three years in a row", back: "Tre år i træk" },
     ],
     quiz: [
-      { q: "'Have you ever ___ to Scotland?' (experience question)", options: ["been", "went", "go", "gone"], correct: 0, explain: "'Have you ever been to…?' is the standard expression for asking about life experiences. 'Been' is the past participle of 'be/go' used with 'have you ever'." },
+      { q: "'Have you ever ___ to Scotland?' (experience question)", options: ["been", "went", "go", "gone"], correct: 0, explain: "'Have you ever been to…?' is the standard idiom for life experiences. 'Been to' = visited and returned. 'Gone to' implies the person is still there ('She has gone to Scotland' = she's there now), so it doesn't work for experience questions. 'Went' and 'go' are not past participles." },
       { q: "'She is absolutely ___.' (she cannot move, she is so tired)", options: ["very tired", "exhausted", "tired", "sleepy"], correct: 1, explain: "'Absolutely exhausted' is the extreme adjective. Never say 'absolutely tired' or 'very exhausted'." },
       { q: "Present perfect for experiences: 'I ___ never tried caviar.'", options: ["have", "had", "did", "am"], correct: 0, explain: "Present perfect = have/has + past participle. 'I have never tried' is correct." },
       { q: "'I was absolutely terrified' expresses:", options: ["mild fear", "happiness", "extreme fear", "surprise"], correct: 2, explain: "'Terrified' is the extreme/non-gradable form of 'scared'. 'Absolutely terrified' = extremely scared." },
