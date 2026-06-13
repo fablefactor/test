@@ -1,64 +1,838 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>World Clock</title>
-    <link rel="stylesheet" href="styles.css">
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pathway to B1 — English Tutor</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="curriculum.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { background: #F2F5F4; font-family: 'Avenir Next','Segoe UI',system-ui,-apple-system,sans-serif; color: #1C2B33; }
+    #root { min-height: 100vh; }
+
+    /* ── Flashcard flip ── */
+    .fc-scene { perspective: 1000px; width: 100%; min-height: 180px; cursor: pointer; user-select: none; }
+    .fc-card { width: 100%; min-height: 180px; position: relative; transform-style: preserve-3d; transition: transform 0.45s ease; }
+    .fc-card.flipped { transform: rotateY(180deg); }
+    .fc-face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 18px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 28px 24px; text-align: center; border: 1px solid #DDE5E3; }
+    .fc-back { transform: rotateY(180deg); }
+
+    /* ── Progress bar ── */
+    .prog-bar { height: 8px; border-radius: 4px; background: #DDE5E3; overflow: hidden; }
+    .prog-fill { height: 100%; border-radius: 4px; background: #146C60; transition: width .4s ease; }
+
+    /* ── Buttons ── */
+    button { font-family: inherit; transition: opacity .15s; }
+    button:active:not(:disabled) { transform: scale(0.97); }
+
+    /* ── Theory HTML content ── */
+    .theory-body strong { color: #146C60; font-weight: 700; }
+    .theory-body em { font-style: italic; color: #5C6B72; }
+  </style>
 </head>
 <body>
-    <div class="clocks-container">
-        <div class="clock-container">
-            <h2>Local Time</h2>
-            <div class="clock">
-                <span id="hours">00</span>:
-                <span id="minutes">00</span>:
-                <span id="seconds">00</span>
-                <span id="ampm">AM</span>
-            </div>
-            <div id="localLocationInfo" class="info-box"></div>
-            <button id="formatToggle">Switch to 24H</button>
-        </div>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
 
-        <div class="clock-container">
-            <div class="location-selector">
-                <img id="selectedFlag" src="" alt="Country flag" width="30">
-                <div class="selectors-container">
-                    <select id="continentSelect" style="width: 200px;">
-                        <option value="">Select Continent/Region</option>
-                    </select>
-                    <select id="countrySelect" style="width: 200px;" disabled>
-                        <option value="">Select Country</option>
-                    </select>
-                    <select id="citySelect" style="width: 200px;" disabled>
-                        <option value="">Select City</option>
-                    </select>
-                </div>
-            </div>
-            <div class="clock">
-                <span id="intHours">00</span>:
-                <span id="intMinutes">00</span>:
-                <span id="intSeconds">00</span>
-                <span id="intAmpm">AM</span>
-            </div>
-            <div id="cityInfo" class="info-box"></div>
-            <div class="location-details">
-                <div id="timezoneInfo" class="info-box"></div>
-                <div id="regionInfo" class="info-box"></div>
-                <div id="populationInfo" class="info-box"></div>
-            </div>
-            <div id="specialNotes" class="info-box"></div>
-            <div class="metadata-container">
-                <div id="administrativeInfo" class="info-box"></div>
-                <div id="geographicalInfo" class="info-box"></div>
-                <div id="timezoneCases" class="info-box"></div>
-            </div>
-        </div>
+/* ── Colors ── */
+const C = {
+  bg:"#F2F5F4", card:"#FFFFFF", ink:"#1C2B33", sub:"#5C6B72",
+  teal:"#146C60", tealSoft:"#E0EEEB", amber:"#F4A93D", amberSoft:"#FBEFD9",
+  coral:"#E2604C", coralSoft:"#FAE4E0", green:"#3FA873", greenSoft:"#E1F2E9",
+  line:"#DDE5E3", purple:"#6B4FBB", purpleSoft:"#EDE8F8",
+};
+const FONT = "'Avenir Next','Segoe UI',system-ui,-apple-system,sans-serif";
+
+const LEVELS = ["A1","A2","B1"];
+const LEVEL_TOPICS = {
+  A1:["a1-greet","a1-num","a1-fam","a1-food","a1-day","a1-town"],
+  A2:["a2-past","a2-shop","a2-travel","a2-health","a2-work","a2-plans"],
+  B1:["b1-opinion","b1-story","b1-if","b1-news","b1-email","b1-feel"],
+};
+const PRON_SENTENCES = {
+  A1:[
+    "Hello, my name is Anna and I am from Denmark.",
+    "I would like a coffee with milk, please.",
+    "The supermarket is next to the train station.",
+    "She works every day from nine to five.",
+    "We have three children and one dog.",
+    "What time is it now?",
+    "Today is Monday and tomorrow is Tuesday.",
+    "My mother has brown hair and blue eyes.",
+  ],
+  A2:[
+    "Yesterday I went to the cinema with my friends.",
+    "Could you tell me how to get to the airport?",
+    "I have a headache and a sore throat.",
+    "We are going to visit my parents next weekend.",
+    "How much does this jacket cost?",
+    "I worked in a restaurant when I was younger.",
+    "She applied for a job as an engineer last month.",
+    "Did you see the football match last night?",
+  ],
+  B1:[
+    "In my opinion, learning a language takes patience and practice.",
+    "If I had more time, I would travel around the world.",
+    "She told me that the meeting had been cancelled.",
+    "I have been living in Copenhagen for three years.",
+    "Although it was raining, we decided to walk home.",
+    "I am writing to enquire about the position advertised online.",
+    "By the time we arrived, the train had already left.",
+    "I couldn't agree more — protecting the environment is our biggest challenge.",
+  ],
+};
+
+/* ══ Placement Test Questions ═══════════════════════════════ */
+const PLACEMENT_QS = [
+  // A1
+  {q:"What ___ your name?",opts:["is","are","am","have"],ans:0,level:"A1"},
+  {q:"I have ___ older sister.",opts:["a","an","the","—"],ans:0,level:"A1"},
+  {q:"She ___ to school every day.",opts:["go","goes","going","gone"],ans:1,level:"A1"},
+  {q:"The bank is ___ the post office. (directly across the road)",opts:["next to","opposite","between","behind"],ans:1,level:"A1"},
+  {q:"How ___ does this cost?",opts:["much","many","old","far"],ans:0,level:"A1"},
+  {q:"'Half past seven' means:",opts:["7:00","7:15","7:30","7:45"],ans:2,level:"A1"},
+  {q:"I ___ drink coffee — I prefer tea.",opts:["always","never","sometimes","still"],ans:1,level:"A1"},
+  // A2
+  {q:"Yesterday she ___ to the cinema.",opts:["go","goes","went","has gone"],ans:2,level:"A2"},
+  {q:"We ___ go to school last Monday — it was a holiday.",opts:["didn't","don't","not","haven't"],ans:0,level:"A2"},
+  {q:"How long ___ you had this cough?",opts:["have","did","do","are"],ans:0,level:"A2"},
+  {q:"She works ___ a nurse at the hospital.",opts:["like","for","as","in"],ans:2,level:"A2"},
+  {q:"'A return ticket' means you:",opts:["travel one way only","travel there and back","get a refund","upgrade to first class"],ans:1,level:"A2"},
+  {q:"We ___ visit my parents next weekend. (plan already booked)",opts:["will","are going to","shall","would"],ans:1,level:"A2"},
+  {q:"'Do you have this in a larger ___?' (clothing shop)",opts:["price","colour","size","model"],ans:2,level:"A2"},
+  // B1
+  {q:"Direct: 'I am happy.' → Reported: 'She said she ___ happy.'",opts:["is","was","were","has been"],ans:1,level:"B1"},
+  {q:"'I was walking home when I ___ a loud noise.' (main event)",opts:["heard","was hearing","had heard","hear"],ans:0,level:"B1"},
+  {q:"'If I ___ more money, I would buy a house.' (second conditional)",opts:["have","had","would have","having"],ans:1,level:"B1"},
+  {q:"You know the recipient's name. You end the formal email with:",opts:["Yours faithfully,","Yours sincerely,","Best wishes,","Cheers,"],ans:1,level:"B1"},
+  {q:"'___ my opinion, we should invest more in public transport.'",opts:["In","From","By","With"],ans:0,level:"B1"},
+  {q:"'By the time we arrived, the train ___.' (left before we got there)",opts:["left","was leaving","had left","has left"],ans:2,level:"B1"},
+];
+
+/* ══ Streak Tracking ════════════════════════════════════════ */
+const todayStr=()=>new Date().toISOString().slice(0,10);
+function loadStreak(){ try{ const v=localStorage.getItem('ptb1:streak'); return v?JSON.parse(v):{streak:0,best:0,last:null}; }catch{ return{streak:0,best:0,last:null}; } }
+function touchStreak(){
+  const s=loadStreak(); const today=todayStr();
+  if(s.last===today) return s;
+  const yd=new Date(today); yd.setDate(yd.getDate()-1); const yesterday=yd.toISOString().slice(0,10);
+  const ns=(s.last===yesterday)?s.streak+1:1;
+  const updated={streak:ns,best:Math.max(ns,s.best||0),last:today};
+  try{ localStorage.setItem('ptb1:streak',JSON.stringify(updated)); }catch{}
+  return updated;
+}
+
+/* ══ Wrong Answer Tracking ══════════════════════════════════ */
+function getWrongs(){ try{ const v=localStorage.getItem('ptb1:wrongs'); return v?JSON.parse(v):[]; }catch{ return[]; } }
+function addWrong(topicId,qi){
+  const ws=getWrongs(); const idx=ws.findIndex(w=>w.topicId===topicId&&w.qi===qi);
+  if(idx>=0){ws[idx].count++;ws[idx].last=Date.now();}else{ws.push({topicId,qi,count:1,last:Date.now()});}
+  try{ localStorage.setItem('ptb1:wrongs',JSON.stringify(ws)); }catch{}
+}
+function clearWrong(topicId,qi){ try{ localStorage.setItem('ptb1:wrongs',JSON.stringify(getWrongs().filter(w=>!(w.topicId===topicId&&w.qi===qi)))); }catch{} }
+function getTopWrongs(n=12){ return getWrongs().sort((a,b)=>b.count-a.count).slice(0,n); }
+
+/* ══ Spaced Repetition (Leitner) ═══════════════════════════ */
+const BOX_INTERVALS = [0, 1, 60*12, 60*24, 60*24*3, 60*24*7]; // minutes
+
+function fcKey(id,i){ return `ptb1:fc:${id}:${i}`; }
+function getFCS(id,i){ try{ const v=localStorage.getItem(fcKey(id,i)); return v?JSON.parse(v):{box:0,next:0}; }catch{ return{box:0,next:0}; } }
+function setFCS(id,i,s){ try{ localStorage.setItem(fcKey(id,i),JSON.stringify(s)); }catch{} }
+function answerCard(id,i,result){
+  const s=getFCS(id,i);
+  const nb=result==='good'?Math.min(s.box+1,5):result==='close'?Math.max(s.box-1,1):1;
+  setFCS(id,i,{box:nb,next:Date.now()+BOX_INTERVALS[nb]*60000});
+}
+function getDueCards(id){
+  const tp=CURRICULUM[id]; if(!tp)return[];
+  const now=Date.now();
+  return tp.flashcards.map((c,i)=>({...c,index:i,...getFCS(id,i)})).filter(c=>c.next<=now);
+}
+function getMastery(id){ const tp=CURRICULUM[id]; if(!tp)return 0; return tp.flashcards.filter((_,i)=>getFCS(id,i).box>=5).length; }
+function allDue(){ return Object.keys(CURRICULUM).reduce((s,id)=>s+getDueCards(id).length,0); }
+
+/* ══ Persistence ════════════════════════════════════════════ */
+function loadApp(){ try{ const v=localStorage.getItem('ptb1:app'); return v?JSON.parse(v):null; }catch{return null;} }
+function saveApp(s){ try{ localStorage.setItem('ptb1:app',JSON.stringify(s)); }catch{} }
+
+/* ══ TTS ════════════════════════════════════════════════════ */
+function speak(text,rate=0.9){
+  try{
+    window.speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(text); u.lang='en-GB'; u.rate=rate;
+    const vs=window.speechSynthesis.getVoices();
+    const v=vs.find(v=>v.lang&&v.lang.startsWith('en-GB'))||vs.find(v=>v.lang&&v.lang.startsWith('en'));
+    if(v)u.voice=v;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+/* ══ Speech Recognition ══════════════════════════════════════ */
+const SR=typeof window!=='undefined'&&(window.SpeechRecognition||window.webkitSpeechRecognition);
+function lev(a,b){ const m=a.length,n=b.length; if(!m)return n;if(!n)return m; const d=Array.from({length:m+1},(_,i)=>[i,...Array(n).fill(0)]); for(let j=0;j<=n;j++)d[0][j]=j; for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1)); return d[m][n]; }
+const norm=s=>s.toLowerCase().replace(/[^a-z0-9'\s]/g,'').replace(/\s+/g,' ').trim();
+function scorePron(target,heard){
+  const tw=norm(target).split(' ').filter(Boolean), hw=norm(heard).split(' ').filter(Boolean);
+  const used=new Array(hw.length).fill(false);
+  const words=tw.map(w=>{ let best=-1,bd=Infinity; hw.forEach((h,i)=>{ if(used[i])return; const d=lev(w,h); if(d<bd){bd=d;best=i;} }); const tol=w.length<=3?0:w.length<=6?1:2; if(best>=0&&bd===0){used[best]=true;return{w,s:'good'};} if(best>=0&&bd<=tol){used[best]=true;return{w,s:'close'};} return{w,s:'miss'}; });
+  const pts=words.reduce((a,x)=>a+(x.s==='good'?1:x.s==='close'?0.5:0),0);
+  return{words,pct:Math.round(pts/tw.length*100)};
+}
+function useListen(onResult){
+  const[listening,setListening]=useState(false);
+  const[micErr,setMicErr]=useState(null);
+  const recRef=useRef(null);
+  const start=useCallback(async()=>{
+    if(!SR)return; setMicErr(null);
+    try{ const s=await navigator.mediaDevices.getUserMedia({audio:true}); s.getTracks().forEach(t=>t.stop()); }
+    catch(e){ setMicErr('perm'); return; }
+    try{
+      const rec=new SR(); recRef.current=rec; rec.lang='en-GB'; rec.interimResults=false; rec.maxAlternatives=1;
+      rec.onresult=e=>{ setListening(false); onResult(e.results[0][0].transcript); };
+      rec.onerror=e=>{ setListening(false); const c=(e&&e.error)||'unknown'; setMicErr(c==='not-allowed'||c==='service-not-allowed'?'perm':c==='no-speech'?'nospeech':c==='aborted'?null:'error'); };
+      rec.onend=()=>setListening(false);
+      setListening(true); rec.start();
+    }catch(e){ setListening(false); setMicErr('error'); }
+  },[onResult]);
+  const stop=useCallback(()=>{ try{recRef.current&&recRef.current.stop();}catch(e){} setListening(false); },[]);
+  return{listening,start,stop,supported:!!SR,micErr};
+}
+
+/* ══ Shared UI ═══════════════════════════════════════════════ */
+const S={
+  page:{minHeight:'100vh',background:C.bg,color:C.ink,fontFamily:FONT,display:'flex',justifyContent:'center'},
+  shell:{width:'100%',maxWidth:580,padding:'20px 16px 60px'},
+  card:{background:C.card,borderRadius:18,padding:18,boxShadow:'0 1px 4px rgba(28,43,51,0.09)',border:`1px solid ${C.line}`},
+  btn:(bg,col='#fff',off=false)=>({background:off?C.line:bg,color:off?C.sub:col,border:'none',borderRadius:12,padding:'12px 18px',fontSize:16,fontWeight:700,cursor:off?'default':'pointer',fontFamily:FONT}),
+  ghost:{background:'transparent',color:C.teal,border:`1.5px solid ${C.teal}`,borderRadius:12,padding:'10px 16px',fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:FONT},
+};
+
+function BackBar({title,onBack}){
+  return(
+    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
+      <button onClick={onBack} style={{...S.ghost,padding:'8px 14px',fontSize:14}}>← Back</button>
+      <h2 style={{margin:0,fontSize:19,fontWeight:800,flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{title}</h2>
     </div>
-    <script src="cities-data.js"></script>
-    <script src="script.js"></script>
+  );
+}
+function ProgBar({value,max,color=C.teal}){
+  const pct=max>0?Math.round(value/max*100):0;
+  return <div className="prog-bar"><div className="prog-fill" style={{width:`${pct}%`,background:color}}/></div>;
+}
+function Badge({color,bg,children}){
+  return <span style={{background:bg,color,fontSize:12,fontWeight:800,padding:'3px 10px',borderRadius:99}}>{children}</span>;
+}
+
+/* ══ Placement Test ══════════════════════════════════════════ */
+function PlacementTest({onDone}){
+  const[qi,setQi]=useState(0);
+  const[picked,setPicked]=useState(null);
+  const[checked,setChecked]=useState(false);
+  const[answers,setAnswers]=useState([]);
+
+  const q=PLACEMENT_QS[qi];
+  const last=qi===PLACEMENT_QS.length-1;
+  const isRight=picked===q.ans;
+
+  const doCheck=()=>setChecked(true);
+
+  const doNext=()=>{
+    const newAnswers=[...answers,{level:q.level,correct:picked===q.ans}];
+    if(last){
+      const by={A1:{ok:0,tot:0},A2:{ok:0,tot:0},B1:{ok:0,tot:0}};
+      newAnswers.forEach(a=>{by[a.level].tot++;if(a.correct)by[a.level].ok++;});
+      const pct=lv=>by[lv].tot>0?by[lv].ok/by[lv].tot*100:0;
+      let lv='A1';
+      if(pct('A1')>=60&&pct('A2')>=60)lv='B1';
+      else if(pct('A1')>=60)lv='A2';
+      try{localStorage.setItem('ptb1:placementDone','1');}catch{}
+      onDone(lv);
+    }else{
+      setAnswers(newAnswers);
+      setQi(qi+1);
+      setPicked(null);
+      setChecked(false);
+    }
+  };
+
+  const lvCol={A1:C.teal,A2:'#9A6B12',B1:C.purple};
+  return(
+    <div>
+      <div style={{textAlign:'center',padding:'28px 0 18px'}}>
+        <div style={{fontSize:44,marginBottom:10}}>🎯</div>
+        <h1 style={{margin:0,fontSize:24,fontWeight:800,color:C.teal}}>Placement Test</h1>
+        <div style={{color:C.sub,fontSize:14,marginTop:4}}>Let's find your starting level — {PLACEMENT_QS.length} quick questions</div>
+      </div>
+      <div style={{marginBottom:8}}><ProgBar value={qi+1} max={PLACEMENT_QS.length}/></div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <div style={{fontSize:13,color:C.sub,fontWeight:600}}>{qi+1} / {PLACEMENT_QS.length}</div>
+        <Badge color={lvCol[q.level]} bg={q.level==='A1'?C.tealSoft:q.level==='A2'?C.amberSoft:C.purpleSoft}>{q.level}</Badge>
+      </div>
+      <div style={{...S.card,marginBottom:14}}>
+        <div style={{fontWeight:700,fontSize:17,lineHeight:1.5}}>{q.q}</div>
+      </div>
+      <div style={{display:'grid',gap:8,marginBottom:14}}>
+        {q.opts.map((op,i)=>{
+          let bg=C.card,bdr=C.line;
+          if(checked&&i===q.ans){bg=C.greenSoft;bdr=C.green;}
+          else if(checked&&i===picked&&!isRight){bg=C.coralSoft;bdr=C.coral;}
+          else if(!checked&&i===picked){bg=C.tealSoft;bdr=C.teal;}
+          return(
+            <button key={i} disabled={checked} onClick={()=>setPicked(i)}
+              style={{background:bg,border:`2px solid ${bdr}`,borderRadius:12,padding:'12px 14px',textAlign:'left',fontSize:16,fontWeight:600,cursor:checked?'default':'pointer',fontFamily:FONT}}>
+              {op}
+            </button>
+          );
+        })}
+      </div>
+      {!checked?(
+        <button disabled={picked==null} onClick={doCheck}
+          style={{...S.btn(picked==null?C.line:C.teal,'#fff',picked==null),width:'100%'}}>Check</button>
+      ):(
+        <button onClick={doNext}
+          style={{...S.btn(C.teal),width:'100%'}}>{last?'See my level →':'Next →'}</button>
+      )}
+      <button onClick={()=>{try{localStorage.setItem('ptb1:placementDone','1');}catch{}onDone('A1');}}
+        style={{...S.ghost,width:'100%',marginTop:10,fontSize:13}}>Skip — start from A1</button>
+    </div>
+  );
+}
+
+/* ══ Level Path ══════════════════════════════════════════════ */
+function LevelPath({level,setLevel,completed}){
+  return(
+    <div style={{...S.card,padding:'18px 16px'}}>
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',marginBottom:12}}>Your Level</div>
+      <div style={{display:'flex',alignItems:'center'}}>
+        {LEVELS.map((lv,i)=>{
+          const ids=LEVEL_TOPICS[lv];
+          const done=ids.filter(id=>(completed||[]).includes(id)).length;
+          const active=level===lv;
+          return(
+            <React.Fragment key={lv}>
+              {i>0&&<div style={{flex:1,borderTop:`3px dotted ${C.line}`,margin:'0 4px',transform:'translateY(-12px)'}}/>}
+              <button onClick={()=>setLevel(lv)} style={{background:'transparent',border:'none',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:5,fontFamily:FONT}}>
+                <div style={{width:56,height:56,borderRadius:'50%',background:active?C.teal:C.tealSoft,color:active?'#fff':C.teal,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:17,border:active?`3px solid ${C.amber}`:'3px solid transparent',transition:'all .2s'}}>{lv}</div>
+                <div style={{fontSize:11,color:C.sub,fontWeight:600}}>{done}/{ids.length}</div>
+              </button>
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ══ Home ════════════════════════════════════════════════════ */
+function HomeScreen({level,setLevel,xp,completed,dueCount,streak,weakCount,onNav}){
+  const modes=[
+    {id:'lessons',icon:'📚',title:'Lessons',desc:'Theory → Examples → Quiz',col:C.teal,bg:C.tealSoft},
+    {id:'cards',icon:'🃏',title:'Flashcards',desc:`Spaced repetition${dueCount>0?` · ${dueCount} due`:''}`,col:C.purple,bg:C.purpleSoft,badge:dueCount||null},
+    {id:'pron',icon:'🎤',title:'Pronunciation',desc:'Speak & see your score',col:C.amber,bg:C.amberSoft},
+    {id:'weakpoints',icon:'🎯',title:'Weak Points',desc:'Drill your missed questions',col:C.coral,bg:C.coralSoft,badge:weakCount||null},
+    {id:'progress',icon:'📊',title:'Progress',desc:'Your stats & mastery',col:C.sub,bg:C.line},
+  ];
+  const stk=streak||{streak:0,best:0};
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+        <div>
+          <h1 style={{margin:0,fontSize:27,fontWeight:800,letterSpacing:-0.5,color:C.teal}}>Pathway to B1</h1>
+          <div style={{color:C.sub,fontSize:14,marginTop:2}}>Your English journey, one level at a time</div>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6,flexShrink:0}}>
+          <div style={{background:C.amberSoft,color:'#9A6B12',fontWeight:800,borderRadius:99,padding:'6px 12px',fontSize:14,whiteSpace:'nowrap'}}>⭐ {xp} XP</div>
+          {stk.streak>0&&<div style={{background:'#FFF0E8',color:'#C05000',fontWeight:800,borderRadius:99,padding:'4px 10px',fontSize:13,whiteSpace:'nowrap'}}>🔥 {stk.streak} day{stk.streak!==1?'s':''}</div>}
+        </div>
+      </div>
+      <div style={{margin:'16px 0'}}><LevelPath level={level} setLevel={setLevel} completed={completed}/></div>
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',margin:'18px 0 10px'}}>Practice modes</div>
+      <div style={{display:'grid',gap:10}}>
+        {modes.map(m=>(
+          <button key={m.id} onClick={()=>onNav(m.id)} style={{...S.card,display:'flex',gap:14,alignItems:'center',cursor:'pointer',textAlign:'left',fontFamily:FONT}}>
+            <div style={{width:52,height:52,borderRadius:14,background:m.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,flexShrink:0}}>{m.icon}</div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:800,fontSize:16,display:'flex',alignItems:'center',gap:8}}>
+                {m.title}
+                {m.badge?<span style={{background:C.coral,color:'#fff',fontSize:11,fontWeight:800,padding:'2px 7px',borderRadius:99}}>{m.badge}</span>:null}
+              </div>
+              <div style={{fontSize:13.5,color:C.sub,marginTop:1}}>{m.desc}</div>
+            </div>
+            <div style={{color:m.col,fontWeight:800,fontSize:22}}>›</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ══ Lessons ═════════════════════════════════════════════════ */
+function LessonsScreen({level,completed,onComplete,addXP,onBack}){
+  const[topic,setTopic]=useState(null);
+  if(!topic) return(
+    <div>
+      <BackBar title={`Lessons · ${level}`} onBack={onBack}/>
+      <div style={{fontWeight:700,color:C.sub,marginBottom:10,fontSize:14}}>Choose a topic</div>
+      <div style={{display:'grid',gap:10}}>
+        {LEVEL_TOPICS[level].map(id=>{
+          const tp=CURRICULUM[id]; const done=(completed||[]).includes(id);
+          return(
+            <button key={id} onClick={()=>setTopic(id)} style={{...S.card,display:'flex',alignItems:'center',gap:12,cursor:'pointer',textAlign:'left',fontFamily:FONT,fontSize:16}}>
+              <span style={{fontSize:26}}>{tp.icon}</span>
+              <span style={{flex:1,fontWeight:700}}>{tp.title}</span>
+              {done&&<Badge color={C.green} bg={C.greenSoft}>✓ Done</Badge>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+  return <LessonFlow topicId={topic} onBack={()=>setTopic(null)} onComplete={(score)=>{onComplete(topic,score);setTopic(null);}} addXP={addXP}/>;
+}
+
+function LessonFlow({topicId,onBack,onComplete,addXP}){
+  const tp=CURRICULUM[topicId];
+  const[step,setStep]=useState('theory');
+  const[tIdx,setTIdx]=useState(0);
+  const[qi,setQi]=useState(0);
+  const[picked,setPicked]=useState(null);
+  const[checked,setChecked]=useState(false);
+  const[right,setRight]=useState(0);
+
+  const resetQuiz=()=>{ setQi(0);setPicked(null);setChecked(false);setRight(0); };
+
+  if(step==='theory'){
+    const sec=tp.theory[tIdx]; const last=tIdx===tp.theory.length-1;
+    return(
+      <div>
+        <BackBar title={tp.title} onBack={onBack}/>
+        <div style={{display:'flex',gap:6,marginBottom:14}}>
+          {tp.theory.map((_,i)=>(
+            <div key={i} style={{flex:1,height:4,borderRadius:2,background:i<=tIdx?C.teal:C.line,transition:'background .3s'}}/>
+          ))}
+        </div>
+        <div style={{...S.card,marginBottom:14}}>
+          <div style={{fontWeight:800,fontSize:16,color:C.teal,marginBottom:10}}>📖 {sec.heading}</div>
+          <div className="theory-body" style={{fontSize:15,lineHeight:1.7,color:C.ink}} dangerouslySetInnerHTML={{__html:sec.body}}/>
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          {tIdx>0&&<button onClick={()=>setTIdx(tIdx-1)} style={S.ghost}>← Prev</button>}
+          <button onClick={()=>{ if(last)setStep('examples'); else setTIdx(tIdx+1); }} style={{...S.btn(C.teal),flex:1}}>
+            {last?'See Examples →':'Next →'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if(step==='examples') return(
+    <div>
+      <BackBar title={tp.title} onBack={()=>{setStep('theory');setTIdx(0);}}/>
+      <div style={{...S.card,marginBottom:10,background:C.tealSoft,border:'none',padding:'12px 14px'}}>
+        <div style={{fontWeight:700,fontSize:14,color:C.teal}}>Read and listen to the examples, then take the quiz.</div>
+      </div>
+      <div style={{display:'grid',gap:8,marginBottom:18}}>
+        {tp.examples.map((ex,i)=>(
+          <div key={i} style={{...S.card,padding:14,display:'flex',gap:10,alignItems:'flex-start'}}>
+            <button onClick={()=>speak(ex.en)} aria-label="Listen" style={{background:C.tealSoft,border:'none',borderRadius:10,width:38,height:38,cursor:'pointer',fontSize:17,flexShrink:0}}>🔊</button>
+            <div>
+              <div style={{fontWeight:700,fontSize:15}}>{ex.en}</div>
+              <div style={{fontSize:13,color:C.sub,marginTop:3}}>{ex.da}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <button onClick={()=>setStep('quiz')} style={{...S.btn(C.teal),width:'100%'}}>Start Quiz →</button>
+    </div>
+  );
+
+  if(step==='quiz'){
+    const ex=tp.quiz[qi]; const isRight=picked===ex.correct;
+    return(
+      <div>
+        <BackBar title={`Q${qi+1} of ${tp.quiz.length}`} onBack={()=>setStep('examples')}/>
+        <div style={{marginBottom:12}}><ProgBar value={qi+1} max={tp.quiz.length}/></div>
+        <div style={{...S.card,marginBottom:14}}>
+          <div style={{fontWeight:700,fontSize:17,lineHeight:1.5}}>{ex.q}</div>
+        </div>
+        <div style={{display:'grid',gap:8}}>
+          {ex.options.map((op,i)=>{
+            let bg=C.card,bdr=C.line;
+            if(checked&&i===ex.correct){bg=C.greenSoft;bdr=C.green;}
+            else if(checked&&i===picked&&!isRight){bg=C.coralSoft;bdr=C.coral;}
+            else if(!checked&&i===picked){bg=C.tealSoft;bdr=C.teal;}
+            return(
+              <button key={i} disabled={checked} onClick={()=>setPicked(i)}
+                style={{background:bg,border:`2px solid ${bdr}`,borderRadius:12,padding:'12px 14px',textAlign:'left',fontSize:16,fontWeight:600,cursor:checked?'default':'pointer',fontFamily:FONT}}>
+                {op}
+              </button>
+            );
+          })}
+        </div>
+        {checked&&(
+          <div style={{...S.card,marginTop:12,background:isRight?C.greenSoft:C.coralSoft,border:'none'}}>
+            <div style={{fontWeight:800,color:isRight?C.green:C.coral}}>{isRight?'✓ Correct!':'✗ Not quite.'}</div>
+            <div style={{fontSize:14,marginTop:4,lineHeight:1.5}}>{ex.explain}</div>
+          </div>
+        )}
+        <div style={{marginTop:14}}>
+          {!checked?(
+            <button disabled={picked==null} onClick={()=>{setChecked(true);if(picked===ex.correct){setRight(r=>r+1);clearWrong(topicId,qi);}else{addWrong(topicId,qi);}}}
+              style={{...S.btn(picked==null?C.line:C.teal,'#fff',picked==null),width:'100%'}}>Check</button>
+          ):(
+            <button onClick={()=>{ if(qi+1<tp.quiz.length){setQi(qi+1);setPicked(null);setChecked(false);}else setStep('done'); }}
+              style={{...S.btn(C.teal),width:'100%'}}>{qi+1<tp.quiz.length?'Next →':'See Results →'}</button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // done
+  const total=tp.quiz.length; const passed=right>=Math.ceil(total*0.6); const earned=right*10;
+  return(
+    <div>
+      <BackBar title="Lesson Complete" onBack={onBack}/>
+      <div style={{...S.card,textAlign:'center',padding:36}}>
+        <div style={{fontSize:52}}>{passed?'🎉':'💪'}</div>
+        <div style={{fontSize:22,fontWeight:800,margin:'12px 0 4px'}}>{right}/{total} correct</div>
+        <div style={{color:C.sub,fontSize:14,marginBottom:20}}>{passed?'Well done! Lesson complete.':'Keep practising — you need 60% to pass.'}</div>
+        {passed?(
+          <button onClick={()=>onComplete(right)} style={{...S.btn(C.teal),width:'100%'}}>
+            Finish &amp; earn {earned} XP
+          </button>
+        ):(
+          <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
+            <button onClick={()=>{setStep('theory');setTIdx(0);resetQuiz();}} style={S.btn(C.amber,'#1C2B33')}>Review lesson</button>
+            <button onClick={()=>{setStep('quiz');resetQuiz();}} style={S.btn(C.teal)}>Retry quiz</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ══ Flashcards ══════════════════════════════════════════════ */
+function FlashcardsScreen({level,addXP,onBack}){
+  const[topic,setTopic]=useState(null);
+  if(!topic){
+    const ids=LEVEL_TOPICS[level];
+    return(
+      <div>
+        <BackBar title={`Flashcards · ${level}`} onBack={onBack}/>
+        {ids.some(id=>getDueCards(id).length>0)&&(
+          <div style={{...S.card,background:C.purpleSoft,border:'none',marginBottom:12,padding:'12px 14px'}}>
+            <div style={{fontWeight:800,color:C.purple}}>🔔 You have cards due for review</div>
+            <div style={{fontSize:13,color:C.sub,marginTop:2}}>Cards with a badge are ready to practise.</div>
+          </div>
+        )}
+        <div style={{display:'grid',gap:8}}>
+          {ids.map(id=>{
+            const tp=CURRICULUM[id]; const due=getDueCards(id).length; const mastered=getMastery(id);
+            return(
+              <button key={id} onClick={()=>setTopic(id)} style={{...S.card,display:'flex',alignItems:'center',gap:12,cursor:'pointer',textAlign:'left',fontFamily:FONT}}>
+                <span style={{fontSize:24}}>{tp.icon}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:15}}>{tp.title}</div>
+                  <div style={{fontSize:12,color:C.sub,marginTop:2}}>{mastered}/{tp.flashcards.length} mastered{due>0?<span style={{marginLeft:8,color:C.purple,fontWeight:700}}>· {due} due</span>:''}</div>
+                </div>
+                {due>0&&<Badge color="#fff" bg={C.purple}>{due}</Badge>}
+                <div style={{color:C.purple,fontWeight:800,fontSize:20}}>›</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+  return <FlashcardDeck topicId={topic} addXP={addXP} onBack={()=>setTopic(null)}/>;
+}
+
+function FlashcardDeck({topicId,addXP,onBack}){
+  const tp=CURRICULUM[topicId];
+  const[done,setDone]=useState(false);
+  const[idx,setIdx]=useState(0);
+  const[flipped,setFlipped]=useState(false);
+  const[session]=useState(()=>{ const due=getDueCards(topicId); return due.length>0?due:tp.flashcards.map((c,i)=>({...c,index:i,...getFCS(topicId,i)})); });
+
+  useEffect(()=>setFlipped(false),[idx]);
+
+  if(done||session.length===0) return(
+    <div>
+      <BackBar title={tp.title} onBack={onBack}/>
+      <div style={{...S.card,textAlign:'center',padding:36}}>
+        <div style={{fontSize:48,marginBottom:12}}>🎴</div>
+        <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>All cards reviewed!</div>
+        <div style={{color:C.sub,fontSize:14,marginBottom:20}}>Cards marked "Got it" are scheduled for later review based on spaced repetition.</div>
+        <button onClick={onBack} style={{...S.btn(C.purple),width:'100%'}}>Back to topics</button>
+      </div>
+    </div>
+  );
+
+  const card=session[idx];
+  const answer=(result)=>{ answerCard(topicId,card.index,result); if(result==='good')addXP(5); if(idx+1>=session.length)setDone(true); else{setIdx(idx+1);setFlipped(false);} };
+
+  return(
+    <div>
+      <BackBar title={tp.title} onBack={onBack}/>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <div style={{fontSize:13,color:C.sub,fontWeight:600}}>{session.length-idx} remaining</div>
+        <div style={{display:'flex',gap:5}}>
+          {[1,2,3,4,5].map(b=><div key={b} style={{width:8,height:8,borderRadius:'50%',background:(card.box||0)>=b?C.purple:C.line}}/>)}
+        </div>
+      </div>
+      <ProgBar value={idx} max={session.length} color={C.purple}/>
+      <div style={{marginTop:12}} className="fc-scene" role="button" tabIndex={0} aria-label="Flip card" onClick={()=>setFlipped(f=>!f)} onKeyDown={e=>(e.key==='Enter'||e.key===' ')&&setFlipped(f=>!f)}>
+        <div className={`fc-card${flipped?' flipped':''}`}>
+          <div className="fc-face" style={{background:C.card}}>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:1,color:C.sub,textTransform:'uppercase',marginBottom:12}}>English</div>
+            <div style={{fontWeight:800,fontSize:20,lineHeight:1.4}}>{card.front}</div>
+            <div style={{fontSize:13,color:C.sub,marginTop:14}}>Tap to reveal</div>
+          </div>
+          <div className="fc-face fc-back" style={{background:C.tealSoft}}>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:1,color:C.teal,textTransform:'uppercase',marginBottom:12}}>Dansk</div>
+            <div style={{fontWeight:800,fontSize:20,lineHeight:1.4,color:C.teal}}>{card.back}</div>
+            <div style={{fontSize:13,color:C.teal,marginTop:14,opacity:.7}}>How well did you know this?</div>
+          </div>
+        </div>
+      </div>
+      {flipped?(
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginTop:14}}>
+          <button onClick={()=>answer('miss')} style={{...S.btn(C.coralSoft,C.coral)}}>✗ Missed</button>
+          <button onClick={()=>answer('close')} style={{...S.btn(C.amberSoft,'#9A6B12')}}>〜 Almost</button>
+          <button onClick={()=>answer('good')} style={{...S.btn(C.greenSoft,C.green)}}>✓ Got it!</button>
+        </div>
+      ):(
+        <button onClick={()=>setFlipped(true)} style={{...S.btn(C.purple),width:'100%',marginTop:14}}>Reveal translation</button>
+      )}
+      <button onClick={()=>speak(card.front)} style={{...S.ghost,width:'100%',marginTop:8,fontSize:14}}>🔊 Hear pronunciation</button>
+    </div>
+  );
+}
+
+/* ══ Weak Points ═════════════════════════════════════════════ */
+function WeakPointsScreen({onBack}){
+  const[list]=useState(()=>getTopWrongs(12));
+  const[idx,setIdx]=useState(0);
+  const[picked,setPicked]=useState(null);
+  const[checked,setChecked]=useState(false);
+
+  if(list.length===0) return(
+    <div>
+      <BackBar title="Weak Points" onBack={onBack}/>
+      <div style={{...S.card,textAlign:'center',padding:40}}>
+        <div style={{fontSize:52,marginBottom:12}}>✨</div>
+        <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>No weak points yet!</div>
+        <div style={{color:C.sub,fontSize:14,marginBottom:20}}>Complete some quizzes — missed questions will appear here for extra practice.</div>
+        <button onClick={onBack} style={{...S.btn(C.teal),width:'100%'}}>Back to home</button>
+      </div>
+    </div>
+  );
+
+  if(idx>=list.length) return(
+    <div>
+      <BackBar title="Weak Points" onBack={onBack}/>
+      <div style={{...S.card,textAlign:'center',padding:40}}>
+        <div style={{fontSize:52,marginBottom:12}}>🎉</div>
+        <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>All done!</div>
+        <div style={{color:C.sub,fontSize:14,marginBottom:20}}>Great work — all weak points reviewed this session!</div>
+        <button onClick={onBack} style={{...S.btn(C.teal),width:'100%'}}>Back to home</button>
+      </div>
+    </div>
+  );
+
+  const w=list[idx];
+  const tp=CURRICULUM[w.topicId];
+  const qdata=tp&&tp.quiz[w.qi];
+  if(!tp||!qdata) return null;
+
+  const isRight=picked===qdata.correct;
+
+  return(
+    <div>
+      <BackBar title="Weak Points" onBack={onBack}/>
+      <div style={{...S.card,background:C.coralSoft,border:'none',padding:'10px 14px',marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:13,color:C.coral}}>{w.count}× missed · {tp.icon} {tp.title}</div>
+      </div>
+      <div style={{marginBottom:12}}><ProgBar value={idx} max={list.length} color={C.coral}/></div>
+      <div style={{...S.card,marginBottom:14}}>
+        <div style={{fontWeight:700,fontSize:17,lineHeight:1.5}}>{qdata.q}</div>
+      </div>
+      <div style={{display:'grid',gap:8}}>
+        {qdata.options.map((op,i)=>{
+          let bg=C.card,bdr=C.line;
+          if(checked&&i===qdata.correct){bg=C.greenSoft;bdr=C.green;}
+          else if(checked&&i===picked&&!isRight){bg=C.coralSoft;bdr=C.coral;}
+          else if(!checked&&i===picked){bg=C.tealSoft;bdr=C.teal;}
+          return(
+            <button key={i} disabled={checked} onClick={()=>setPicked(i)}
+              style={{background:bg,border:`2px solid ${bdr}`,borderRadius:12,padding:'12px 14px',textAlign:'left',fontSize:16,fontWeight:600,cursor:checked?'default':'pointer',fontFamily:FONT}}>
+              {op}
+            </button>
+          );
+        })}
+      </div>
+      {checked&&(
+        <div style={{...S.card,marginTop:12,background:isRight?C.greenSoft:C.coralSoft,border:'none'}}>
+          <div style={{fontWeight:800,color:isRight?C.green:C.coral}}>{isRight?'✓ Correct!':'✗ Not quite.'}</div>
+          <div style={{fontSize:14,marginTop:4,lineHeight:1.5}}>{qdata.explain}</div>
+        </div>
+      )}
+      <div style={{marginTop:14}}>
+        {!checked?(
+          <button disabled={picked==null} onClick={()=>setChecked(true)}
+            style={{...S.btn(picked==null?C.line:C.coral,'#fff',picked==null),width:'100%'}}>Check</button>
+        ):(
+          <button onClick={()=>{if(isRight)clearWrong(w.topicId,w.qi);setIdx(i=>i+1);setPicked(null);setChecked(false);}}
+            style={{...S.btn(C.teal),width:'100%'}}>{idx+1<list.length?'Next →':'Finish →'}</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ══ Pronunciation ═══════════════════════════════════════════ */
+function PronScreen({level,addXP,onBack}){
+  const sentences=PRON_SENTENCES[level];
+  const[idx,setIdx]=useState(0);
+  const[result,setResult]=useState(null);
+  const target=sentences[idx%sentences.length];
+  const{listening,start,stop,supported,micErr}=useListen(heard=>{ const r=scorePron(target,heard); setResult({...r,heard}); addXP(Math.round(r.pct/10)); });
+  const next=()=>{setIdx(idx+1);setResult(null);try{window.speechSynthesis.cancel();}catch(e){}};
+  const wc=(s)=>s==='good'?{bg:C.greenSoft,col:C.green}:s==='close'?{bg:C.amberSoft,col:'#9A6B12'}:{bg:C.coralSoft,col:C.coral};
+  return(
+    <div>
+      <BackBar title={`Pronunciation · ${level}`} onBack={onBack}/>
+      {!supported&&<div style={{...S.card,background:C.amberSoft,border:'none',marginBottom:12,fontSize:14}}>⚠️ Microphone not available. Use Chrome, Edge, or Safari.</div>}
+      <div style={{...S.card,textAlign:'center',padding:28,marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:1,color:C.sub,textTransform:'uppercase',marginBottom:14}}>Say this sentence</div>
+        <div style={{fontSize:19,fontWeight:800,lineHeight:1.55,marginBottom:18}}>"{target}"</div>
+        <button onClick={()=>speak(target,0.82)} style={{...S.ghost,marginBottom:20,fontSize:14}}>🔊 Hear it first</button>
+        <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10}}>
+          <button onClick={listening?stop:start} disabled={!supported} aria-label="Microphone"
+            style={{width:72,height:72,borderRadius:'50%',border:'none',cursor:supported?'pointer':'default',background:listening?C.coral:C.teal,color:'#fff',fontSize:30,boxShadow:listening?`0 0 0 10px ${C.coralSoft}`:'0 2px 6px rgba(0,0,0,.15)',transition:'all .2s',opacity:supported?1:0.4}}>
+            {listening?'■':'🎤'}
+          </button>
+          <div style={{fontSize:13,color:listening?C.coral:C.sub,fontWeight:600}}>
+            {listening?'Listening… speak now':'Tap the microphone and speak'}
+          </div>
+          {micErr==='perm'&&<div style={{fontSize:12.5,color:C.coral,fontWeight:600}}>Microphone blocked. Allow it in browser settings.</div>}
+          {micErr==='nospeech'&&<div style={{fontSize:12.5,color:C.coral,fontWeight:600}}>I didn't hear anything — try again, a bit louder.</div>}
+        </div>
+      </div>
+      {result&&(
+        <div style={{...S.card}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+            <div style={{fontWeight:800,fontSize:16}}>Match: <span style={{color:result.pct>=85?C.green:result.pct>=60?'#9A6B12':C.coral}}>{result.pct}%</span></div>
+            <div style={{fontSize:13,color:C.sub,fontWeight:600}}>{result.pct>=85?'Excellent!':result.pct>=60?'Good — keep going!':'Keep practising slowly.'}</div>
+          </div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12}}>
+            {result.words.map((w,i)=>{ const{bg,col}=wc(w.s); return <span key={i} style={{background:bg,color:col,padding:'4px 10px',borderRadius:99,fontWeight:700,fontSize:14}}>{w.w}</span>; })}
+          </div>
+          <div style={{fontSize:12,color:C.sub,marginBottom:14}}>I heard: "{result.heard}"</div>
+          <button onClick={next} style={{...S.btn(C.teal),width:'100%'}}>Next sentence →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══ Progress ════════════════════════════════════════════════ */
+function ProgressScreen({xp,completed,streak,onBack}){
+  const all=Object.keys(CURRICULUM);
+  const totalCards=all.reduce((s,id)=>s+CURRICULUM[id].flashcards.length,0);
+  const masteredCards=all.reduce((s,id)=>s+getMastery(id),0);
+  const stk=streak||{streak:0,best:0};
+  return(
+    <div>
+      <BackBar title="Progress" onBack={onBack}/>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+        {[
+          {label:'Total XP',val:`${xp} XP`,icon:'⭐',col:C.amber,bg:C.amberSoft},
+          {label:'Topics done',val:`${(completed||[]).length}/${all.length}`,icon:'📚',col:C.teal,bg:C.tealSoft},
+          {label:'Cards mastered',val:`${masteredCards}/${totalCards}`,icon:'🃏',col:C.purple,bg:C.purpleSoft},
+          {label:'Cards due now',val:`${allDue()}`,icon:'🔔',col:C.coral,bg:C.coralSoft},
+          {label:'Current streak',val:`${stk.streak} day${stk.streak!==1?'s':''}`,icon:'🔥',col:'#C05000',bg:'#FFF0E8'},
+          {label:'Best streak',val:`${stk.best} day${stk.best!==1?'s':''}`,icon:'🏆',col:C.amber,bg:C.amberSoft},
+        ].map(s=>(
+          <div key={s.label} style={{...S.card,background:s.bg,border:'none',textAlign:'center',padding:'16px 12px'}}>
+            <div style={{fontSize:28,marginBottom:4}}>{s.icon}</div>
+            <div style={{fontWeight:800,fontSize:20,color:s.col}}>{s.val}</div>
+            <div style={{fontSize:12,color:C.sub,fontWeight:600,marginTop:2}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+      {LEVELS.map(lv=>{
+        const ids=LEVEL_TOPICS[lv]; const done=ids.filter(id=>(completed||[]).includes(id)).length;
+        return(
+          <div key={lv} style={{...S.card,marginBottom:10}}>
+            <div style={{fontWeight:800,fontSize:15,color:C.teal,marginBottom:8}}>{lv} — {done}/{ids.length} topics</div>
+            <div style={{marginBottom:10}}><ProgBar value={done} max={ids.length}/></div>
+            <div style={{display:'grid',gap:7}}>
+              {ids.map(id=>{
+                const tp=CURRICULUM[id]; const tdone=(completed||[]).includes(id); const m=getMastery(id);
+                return(
+                  <div key={id} style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:15}}>{tp.icon}</span>
+                    <span style={{flex:1,fontSize:14,fontWeight:600,color:tdone?C.ink:C.sub}}>{tp.title}</span>
+                    {tdone&&<Badge color={C.green} bg={C.greenSoft}>✓</Badge>}
+                    <span style={{fontSize:12,color:C.sub}}>{m}/{tp.flashcards.length} cards</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ══ App Root ════════════════════════════════════════════════ */
+function App(){
+  const[screen,setScreen]=useState('home');
+  const[level,setLevelState]=useState(()=>{ try{return localStorage.getItem('ptb1:level')||'A1';}catch{return'A1';} });
+  const[st,setSt]=useState(()=>loadApp()||{xp:0,completed:[]});
+  const[dueCount,setDueCount]=useState(()=>allDue());
+  const[streak,setStreak]=useState(()=>loadStreak());
+  const[weakCount,setWeakCount]=useState(()=>getTopWrongs(12).length);
+  const[showPlacement,setShowPlacement]=useState(()=>{ try{return!localStorage.getItem('ptb1:placementDone');}catch{return false;} });
+
+  useEffect(()=>saveApp(st),[st]);
+  useEffect(()=>{ setDueCount(allDue()); setWeakCount(getTopWrongs(12).length); },[screen]);
+
+  const setLevel=(lv)=>{ setLevelState(lv); try{localStorage.setItem('ptb1:level',lv);}catch{} };
+  const addXP=n=>{ setSt(s=>({...s,xp:(s.xp||0)+n})); setStreak(touchStreak()); };
+  const completeTopic=id=>setSt(s=>({...s,completed:s.completed.includes(id)?s.completed:[...s.completed,id]}));
+
+  if(showPlacement) return(
+    <div style={S.page}><div style={S.shell}>
+      <PlacementTest onDone={(lv)=>{ setLevel(lv); setShowPlacement(false); }}/>
+    </div></div>
+  );
+
+  return(
+    <div style={S.page}>
+      <div style={S.shell}>
+        {screen==='home'&&<HomeScreen level={level} setLevel={setLevel} xp={st.xp} completed={st.completed} dueCount={dueCount} streak={streak} weakCount={weakCount} onNav={setScreen}/>}
+        {screen==='lessons'&&<LessonsScreen level={level} completed={st.completed} onComplete={(id,score)=>{completeTopic(id);addXP(score*10);}} addXP={addXP} onBack={()=>setScreen('home')}/>}
+        {screen==='cards'&&<FlashcardsScreen level={level} addXP={addXP} onBack={()=>setScreen('home')}/>}
+        {screen==='pron'&&<PronScreen level={level} addXP={addXP} onBack={()=>setScreen('home')}/>}
+        {screen==='progress'&&<ProgressScreen xp={st.xp} completed={st.completed} streak={streak} onBack={()=>setScreen('home')}/>}
+        {screen==='weakpoints'&&<WeakPointsScreen onBack={()=>{ setWeakCount(getTopWrongs(12).length); setScreen('home'); }}/>}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
 </body>
-</html> 
+</html>
