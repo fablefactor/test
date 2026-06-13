@@ -31,6 +31,14 @@
     button { font-family: inherit; transition: opacity .15s; }
     button:active:not(:disabled) { transform: scale(0.97); }
 
+    /* ── Mic recording pulse ── */
+    @keyframes micPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(226,76,76,0.55); transform: scale(1); }
+      70%  { box-shadow: 0 0 0 22px rgba(226,76,76,0); transform: scale(1.06); }
+      100% { box-shadow: 0 0 0 0 rgba(226,76,76,0); transform: scale(1); }
+    }
+    .mic-recording { animation: micPulse 1.2s ease-out infinite; }
+
     /* ── Theory HTML content ── */
     .theory-body strong { color: #146C60; font-weight: 700; }
     .theory-body em { font-style: italic; color: #5C6B72; }
@@ -162,6 +170,19 @@ function allDue(){ return Object.keys(CURRICULUM).reduce((s,id)=>s+getDueCards(i
 function loadApp(){ try{ const v=localStorage.getItem('ptb1:app'); return v?JSON.parse(v):null; }catch{return null;} }
 function saveApp(s){ try{ localStorage.setItem('ptb1:app',JSON.stringify(s)); }catch{} }
 
+/* ══ Reset helpers ══════════════════════════════════════════ */
+function clearLevelStorage(lv){
+  const ids=LEVEL_TOPICS[lv]||[];
+  try{
+    Object.keys(localStorage).forEach(k=>{ if(ids.some(id=>k.startsWith(`ptb1:fc:${id}:`))) localStorage.removeItem(k); });
+    localStorage.setItem('ptb1:wrongs',JSON.stringify(getWrongs().filter(w=>!ids.includes(w.topicId))));
+  }catch{}
+}
+function clearAllProgress(){
+  // Wipe everything except the chosen tutor language.
+  try{ Object.keys(localStorage).filter(k=>k.startsWith('ptb1:')&&k!=='ptb1:lang').forEach(k=>localStorage.removeItem(k)); }catch{}
+}
+
 /* ══ TTS ════════════════════════════════════════════════════ */
 function speak(text,rate=0.9){
   try{
@@ -189,18 +210,24 @@ function useListen(onResult){
   const[listening,setListening]=useState(false);
   const[micErr,setMicErr]=useState(null);
   const recRef=useRef(null);
-  const start=useCallback(async()=>{
-    if(!SR)return; setMicErr(null);
-    try{ const s=await navigator.mediaDevices.getUserMedia({audio:true}); s.getTracks().forEach(t=>t.stop()); }
-    catch(e){ setMicErr('perm'); return; }
+  const cbRef=useRef(onResult);
+  useEffect(()=>{ cbRef.current=onResult; },[onResult]);
+  // IMPORTANT: rec.start() must run synchronously inside the click gesture.
+  // On Safari/iOS, awaiting getUserMedia first drops us out of the user-gesture
+  // context and recognition silently never records. So we call start() directly
+  // and let SpeechRecognition handle its own mic permission; errors surface via onerror.
+  const start=useCallback(()=>{
+    if(!SR){ setMicErr('error'); return; }
+    setMicErr(null);
+    try{ window.speechSynthesis&&window.speechSynthesis.cancel(); }catch(e){}
     try{
-      const rec=new SR(); recRef.current=rec; rec.lang='en-GB'; rec.interimResults=false; rec.maxAlternatives=1;
-      rec.onresult=e=>{ setListening(false); onResult(e.results[0][0].transcript); };
+      const rec=new SR(); recRef.current=rec; rec.lang='en-GB'; rec.interimResults=false; rec.maxAlternatives=1; rec.continuous=false;
+      rec.onresult=e=>{ setListening(false); try{ cbRef.current(e.results[0][0].transcript); }catch(_){} };
       rec.onerror=e=>{ setListening(false); const c=(e&&e.error)||'unknown'; setMicErr(c==='not-allowed'||c==='service-not-allowed'?'perm':c==='no-speech'?'nospeech':c==='aborted'?null:'error'); };
       rec.onend=()=>setListening(false);
       setListening(true); rec.start();
     }catch(e){ setListening(false); setMicErr('error'); }
-  },[onResult]);
+  },[]);
   const stop=useCallback(()=>{ try{recRef.current&&recRef.current.stop();}catch(e){} setListening(false); },[]);
   return{listening,start,stop,supported:!!SR,micErr};
 }
@@ -348,6 +375,7 @@ function HomeScreen({level,setLevel,xp,completed,dueCount,streak,weakCount,onNav
           <div style={{color:C.sub,fontSize:14,marginTop:2}}>Your English journey, one level at a time</div>
         </div>
         <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6,flexShrink:0}}>
+          <button onClick={()=>onNav('settings')} aria-label="Settings" style={{background:'transparent',border:'none',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 2px'}}>⚙️</button>
           <div style={{background:C.amberSoft,color:'#9A6B12',fontWeight:800,borderRadius:99,padding:'6px 12px',fontSize:14,whiteSpace:'nowrap'}}>⭐ {xp} XP</div>
           {stk.streak>0&&<div style={{background:'#FFF0E8',color:'#C05000',fontWeight:800,borderRadius:99,padding:'4px 10px',fontSize:13,whiteSpace:'nowrap'}}>🔥 {stk.streak} day{stk.streak!==1?'s':''}</div>}
         </div>
@@ -716,8 +744,8 @@ function PronScreen({level,addXP,onBack}){
         <div style={{fontSize:19,fontWeight:800,lineHeight:1.55,marginBottom:18}}>"{target}"</div>
         <button onClick={()=>speak(target,0.82)} style={{...S.ghost,marginBottom:20,fontSize:14}}>🔊 Hear it first</button>
         <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10}}>
-          <button onClick={listening?stop:start} disabled={!supported} aria-label="Microphone"
-            style={{width:72,height:72,borderRadius:'50%',border:'none',cursor:supported?'pointer':'default',background:listening?C.coral:C.teal,color:'#fff',fontSize:30,boxShadow:listening?`0 0 0 10px ${C.coralSoft}`:'0 2px 6px rgba(0,0,0,.15)',transition:'all .2s',opacity:supported?1:0.4}}>
+          <button onClick={listening?stop:start} disabled={!supported} aria-label="Microphone" className={listening?'mic-recording':''}
+            style={{width:72,height:72,borderRadius:'50%',border:'none',cursor:supported?'pointer':'default',background:listening?C.coral:C.teal,color:'#fff',fontSize:30,boxShadow:listening?'none':'0 2px 6px rgba(0,0,0,.15)',transition:'background .2s',opacity:supported?1:0.4}}>
             {listening?'■':'🎤'}
           </button>
           <div style={{fontSize:13,color:listening?C.coral:C.sub,fontWeight:600}}>
@@ -795,6 +823,38 @@ function ProgressScreen({xp,completed,streak,onBack}){
   );
 }
 
+/* ══ Settings ════════════════════════════════════════════════ */
+function SettingsScreen({onBack,onRerunPlacement,onResetLevel,onResetAll}){
+  return(
+    <div>
+      <BackBar title="Settings" onBack={onBack}/>
+
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',margin:'4px 0 10px'}}>Onboarding</div>
+      <div style={{...S.card,marginBottom:18}}>
+        <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>Placement test</div>
+        <div style={{fontSize:13,color:C.sub,marginBottom:12,lineHeight:1.5}}>Retake the short test to recalculate your recommended starting level.</div>
+        <button onClick={onRerunPlacement} style={{...S.btn(C.teal),width:'100%'}}>🎯 Run placement test again</button>
+      </div>
+
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',margin:'4px 0 10px'}}>Reset progress</div>
+      <div style={{...S.card,marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>Reset a single level</div>
+        <div style={{fontSize:13,color:C.sub,marginBottom:12,lineHeight:1.5}}>Clear completed lessons, flashcard memory and weak points for one level only.</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+          {LEVELS.map(lv=>(
+            <button key={lv} onClick={()=>onResetLevel(lv)} style={{...S.ghost,padding:'10px 0'}}>Reset {lv}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{...S.card,marginBottom:18,border:`1.5px solid ${C.coral}`}}>
+        <div style={{fontWeight:700,fontSize:15,marginBottom:4,color:C.coral}}>Reset everything</div>
+        <div style={{fontSize:13,color:C.sub,marginBottom:12,lineHeight:1.5}}>Erase all XP, streaks, completed lessons, flashcard progress and weak points, and restart onboarding. This cannot be undone.</div>
+        <button onClick={onResetAll} style={{...S.btn(C.coral),width:'100%'}}>🗑️ Reset all progress</button>
+      </div>
+    </div>
+  );
+}
+
 /* ══ App Root ════════════════════════════════════════════════ */
 function App(){
   const[screen,setScreen]=useState('home');
@@ -812,6 +872,20 @@ function App(){
   const addXP=n=>{ setSt(s=>({...s,xp:(s.xp||0)+n})); setStreak(touchStreak()); };
   const completeTopic=id=>setSt(s=>({...s,completed:s.completed.includes(id)?s.completed:[...s.completed,id]}));
 
+  const rerunPlacement=()=>{ try{localStorage.removeItem('ptb1:placementDone');}catch{} setScreen('home'); setShowPlacement(true); };
+  const resetLevel=(lv)=>{
+    if(!window.confirm(`Reset all ${lv} progress?\n\nThis clears your completed ${lv} lessons, flashcard memory and weak points for ${lv}. It cannot be undone.`)) return;
+    clearLevelStorage(lv);
+    setSt(s=>({...s,completed:(s.completed||[]).filter(id=>!LEVEL_TOPICS[lv].includes(id))}));
+    setDueCount(allDue()); setWeakCount(getTopWrongs(12).length);
+  };
+  const resetAll=()=>{
+    if(!window.confirm('Reset ALL progress?\n\nThis erases your XP, streaks, completed lessons, flashcard progress and weak points, and restarts onboarding. It cannot be undone.')) return;
+    clearAllProgress();
+    setSt({xp:0,completed:[]}); setStreak({streak:0,best:0,last:null});
+    setDueCount(0); setWeakCount(0); setLevelState('A1'); setScreen('home'); setShowPlacement(true);
+  };
+
   if(showPlacement) return(
     <div style={S.page}><div style={S.shell}>
       <PlacementTest onDone={(lv)=>{ setLevel(lv); setShowPlacement(false); }}/>
@@ -827,6 +901,7 @@ function App(){
         {screen==='pron'&&<PronScreen level={level} addXP={addXP} onBack={()=>setScreen('home')}/>}
         {screen==='progress'&&<ProgressScreen xp={st.xp} completed={st.completed} streak={streak} onBack={()=>setScreen('home')}/>}
         {screen==='weakpoints'&&<WeakPointsScreen onBack={()=>{ setWeakCount(getTopWrongs(12).length); setScreen('home'); }}/>}
+        {screen==='settings'&&<SettingsScreen onBack={()=>setScreen('home')} onRerunPlacement={rerunPlacement} onResetLevel={resetLevel} onResetAll={resetAll}/>}
       </div>
     </div>
   );
