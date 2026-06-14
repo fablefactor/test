@@ -7,6 +7,7 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="curriculum.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -46,6 +47,18 @@
 </head>
 <body>
 <div id="root"></div>
+<script>
+/* ── Supabase config ─────────────────────────────────────────
+   Replace these two values with your project credentials.
+   Find them at: supabase.com → your project → Project Settings → API
+   Leave as-is to run in localStorage-only mode (no login). ── */
+const SUPABASE_URL      = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const sbClient = (SUPABASE_URL !== 'YOUR_SUPABASE_URL')
+  ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY,
+      {auth:{persistSession:true,autoRefreshToken:true}})
+  : null;
+</script>
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback } = React;
 
@@ -187,6 +200,21 @@ function allDue(){ return ALL_TOPIC_IDS.reduce((s,id)=>s+getDueCards(id).length,
 function loadApp(){ try{ const v=localStorage.getItem('ptb1:app'); return v?JSON.parse(v):null; }catch{return null;} }
 function saveApp(s){ try{ localStorage.setItem('ptb1:app',JSON.stringify(s)); }catch{} }
 
+/* ══ Supabase sync ══════════════════════════════════════════ */
+async function restoreFromSupabase(client,userId){
+  try{
+    const{data:row}=await client.from('user_progress').select('data').eq('user_id',userId).maybeSingle();
+    if(row?.data) Object.entries(row.data).forEach(([k,v])=>{try{localStorage.setItem(k,v);}catch{}});
+  }catch(e){}
+}
+async function syncToSupabase(client,userId){
+  try{
+    const data={};
+    Object.keys(localStorage).forEach(k=>{if(k.startsWith('ptb1:'))data[k]=localStorage.getItem(k);});
+    await client.from('user_progress').upsert({user_id:userId,data,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+  }catch(e){}
+}
+
 /* ══ Reset helpers ══════════════════════════════════════════ */
 function clearLevelStorage(lv){
   const ids=LEVEL_TOPICS[lv]||[];
@@ -296,6 +324,60 @@ function QuizFeedback({isRight,explain,lang}){
     <div style={{...S.card,marginTop:12,background:isRight?C.greenSoft:C.coralSoft,border:'none'}}>
       <div style={{fontWeight:800,color:isRight?C.green:C.coral}}>{isRight?UI(lang,'✓ Correct!','✓ ¡Correcto!'):UI(lang,'✗ Not quite.','✗ Casi.')}</div>
       <div style={{fontSize:14,marginTop:4,lineHeight:1.5}}>{explain}</div>
+    </div>
+  );
+}
+
+/* ══ Login ════════════════════════════════════════════════════ */
+function LoginScreen({lang='en'}){
+  const[email,setEmail]=useState('');
+  const[sent,setSent]=useState(false);
+  const[loading,setLoading]=useState(false);
+  const[err,setErr]=useState(null);
+
+  const send=async()=>{
+    if(!email.trim())return;
+    setLoading(true);setErr(null);
+    const redirect=window.location.origin+window.location.pathname;
+    const{error}=await sbClient.auth.signInWithOtp({email:email.trim(),options:{emailRedirectTo:redirect}});
+    setLoading(false);
+    if(error)setErr(error.message);else setSent(true);
+  };
+
+  if(sent) return(
+    <div style={S.page}>
+      <div style={{...S.shell,display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh'}}>
+        <div style={{...S.card,textAlign:'center',padding:40,maxWidth:380}}>
+          <div style={{fontSize:52,marginBottom:12}}>📬</div>
+          <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>{UI(lang,'Check your email','Revisa tu correo')}</div>
+          <div style={{color:C.sub,fontSize:14,lineHeight:1.6}}>
+            {UI(lang,'We sent a magic link to','Enviamos un enlace a')} <strong>{email}</strong>.{' '}
+            {UI(lang,'Click it to sign in — no password needed.','Haz clic para entrar — no necesitas contraseña.')}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return(
+    <div style={S.page}>
+      <div style={{...S.shell,display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh'}}>
+        <div style={{...S.card,padding:32,maxWidth:380,width:'100%'}}>
+          <div style={{textAlign:'center',marginBottom:28}}>
+            <div style={{fontSize:52,marginBottom:8}}>📚</div>
+            <h1 style={{margin:0,fontSize:24,fontWeight:800,color:C.teal}}>Pathway to B1</h1>
+            <div style={{color:C.sub,fontSize:14,marginTop:4}}>{UI(lang,'Sign in to continue your English journey','Inicia sesión para continuar tu camino al inglés')}</div>
+          </div>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&send()} placeholder="your@email.com"
+            style={{width:'100%',padding:'12px 14px',fontSize:16,borderRadius:12,border:`1.5px solid ${C.line}`,fontFamily:FONT,outline:'none',marginBottom:10}}/>
+          {err&&<div style={{color:C.coral,fontSize:13,marginBottom:8}}>{err}</div>}
+          <button onClick={send} disabled={loading||!email.trim()}
+            style={{...S.btn(email.trim()&&!loading?C.teal:C.line,'#fff',!email.trim()||loading),width:'100%'}}>
+            {loading?UI(lang,'Sending…','Enviando…'):UI(lang,'✉️  Send magic link','✉️  Enviar enlace mágico')}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -830,7 +912,7 @@ function ProgressScreen({xp,lang,completed,streak,onBack}){
 }
 
 /* ══ Settings ════════════════════════════════════════════════ */
-function SettingsScreen({lang,setLang,onBack,onRerunPlacement,onResetLevel,onResetAll}){
+function SettingsScreen({lang,setLang,user,onSignOut,onBack,onRerunPlacement,onResetLevel,onResetAll}){
   const langOpts=[
     {id:'en',flag:'🇬🇧',label:'English',sub:UI(lang,'Immersion — no translations','Inmersión — sin traducciones')},
     {id:'es',flag:'🇪🇸',label:'Español',sub:UI(lang,'Spanish translations & explanations','Traducciones y explicaciones en español')},
@@ -882,12 +964,22 @@ function SettingsScreen({lang,setLang,onBack,onRerunPlacement,onResetLevel,onRes
         <div style={{fontSize:13,color:C.sub,marginBottom:12,lineHeight:1.5}}>{UI(lang,'Erase all XP, streaks, completed lessons, flashcard progress and weak points, and restart onboarding. This cannot be undone.','Borra todo el XP, las rachas, las lecciones completadas, el progreso de tarjetas y los puntos débiles, y reinicia la configuración inicial. Esto no se puede deshacer.')}</div>
         <button onClick={onResetAll} style={{...S.btn(C.coral),width:'100%'}}>🗑️ {UI(lang,'Reset all progress','Reiniciar todo el progreso')}</button>
       </div>
+
+      {sbClient&&(
+        <>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',margin:'4px 0 10px'}}>{UI(lang,'Account','Cuenta')}</div>
+          <div style={{...S.card,marginBottom:18}}>
+            {user?.email&&<div style={{fontSize:13,color:C.sub,marginBottom:12}}>{user.email}</div>}
+            <button onClick={onSignOut} style={{...S.btn(C.line,C.ink),width:'100%'}}>{UI(lang,'Sign out','Cerrar sesión')}</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 /* ══ App Root ════════════════════════════════════════════════ */
-function App(){
+function App({user}){
   const[screen,setScreen]=useState('home');
   const[level,setLevelState]=useState(()=>{ try{return localStorage.getItem('ptb1:level')||'A1';}catch{return'A1';} });
   const[lang,setLangState]=useState(()=>{ try{return localStorage.getItem('ptb1:lang')||'en';}catch{return'en';} });
@@ -897,11 +989,28 @@ function App(){
   const[weakCount,setWeakCount]=useState(()=>getTopWrongs(12).length);
   const[showPlacement,setShowPlacement]=useState(()=>{ try{return!localStorage.getItem('ptb1:placementDone');}catch{return false;} });
 
-  useEffect(()=>saveApp(st),[st]);
-  useEffect(()=>{ setDueCount(allDue()); setWeakCount(getTopWrongs(12).length); },[screen]);
+  const syncTimerRef=useRef(null);
+  const scheduleSync=useCallback(()=>{
+    if(!user||!sbClient)return;
+    clearTimeout(syncTimerRef.current);
+    syncTimerRef.current=setTimeout(()=>syncToSupabase(sbClient,user.id),1500);
+  },[user]);
+  const syncNow=useCallback(()=>{
+    if(!user||!sbClient)return;
+    clearTimeout(syncTimerRef.current);
+    syncToSupabase(sbClient,user.id);
+  },[user]);
 
-  const setLevel=(lv)=>{ setLevelState(lv); try{localStorage.setItem('ptb1:level',lv);}catch{} };
-  const setLang=(l)=>{ setLangState(l); try{localStorage.setItem('ptb1:lang',l);}catch{} };
+  useEffect(()=>{ saveApp(st); scheduleSync(); },[st,scheduleSync]);
+  useEffect(()=>{ scheduleSync(); setDueCount(allDue()); setWeakCount(getTopWrongs(12).length); },[screen,scheduleSync]);
+  useEffect(()=>{
+    const h=()=>{if(document.visibilityState==='hidden')syncNow();};
+    document.addEventListener('visibilitychange',h);
+    return()=>document.removeEventListener('visibilitychange',h);
+  },[syncNow]);
+
+  const setLevel=(lv)=>{ setLevelState(lv); try{localStorage.setItem('ptb1:level',lv);}catch{} scheduleSync(); };
+  const setLang=(l)=>{ setLangState(l); try{localStorage.setItem('ptb1:lang',l);}catch{} scheduleSync(); };
   const addXP=n=>{ setSt(s=>({...s,xp:(s.xp||0)+n})); setStreak(touchStreak()); };
   const completeTopic=id=>setSt(s=>({...s,completed:s.completed.includes(id)?s.completed:[...s.completed,id]}));
 
@@ -918,6 +1027,7 @@ function App(){
     setSt({xp:0,completed:[]}); setStreak({streak:0,best:0,last:null});
     setDueCount(0); setWeakCount(0); setLevelState('A1'); setScreen('home'); setShowPlacement(true);
   };
+  const signOut=async()=>{ syncNow(); if(sbClient)await sbClient.auth.signOut(); };
 
   if(showPlacement) return(
     <div style={S.page}><div style={S.shell}>
@@ -934,13 +1044,58 @@ function App(){
         {screen==='pron'&&<PronScreen level={level} lang={lang} addXP={addXP} onBack={()=>setScreen('home')}/>}
         {screen==='progress'&&<ProgressScreen xp={st.xp} lang={lang} completed={st.completed} streak={streak} onBack={()=>setScreen('home')}/>}
         {screen==='weakpoints'&&<WeakPointsScreen lang={lang} onBack={()=>{ setWeakCount(getTopWrongs(12).length); setScreen('home'); }}/>}
-        {screen==='settings'&&<SettingsScreen lang={lang} setLang={setLang} onBack={()=>setScreen('home')} onRerunPlacement={rerunPlacement} onResetLevel={resetLevel} onResetAll={resetAll}/>}
+        {screen==='settings'&&<SettingsScreen lang={lang} setLang={setLang} user={user} onSignOut={signOut} onBack={()=>setScreen('home')} onRerunPlacement={rerunPlacement} onResetLevel={resetLevel} onResetAll={resetAll}/>}
       </div>
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+/* ══ App Shell (auth wrapper) ═══════════════════════════════ */
+function AppShell(){
+  const[phase,setPhase]=useState('checking'); // 'checking' | 'login' | 'app'
+  const[user,setUser]=useState(null);
+  const userRef=useRef(null);
+
+  useEffect(()=>{
+    if(!sbClient){ setPhase('app'); return; }
+
+    sbClient.auth.getSession().then(async({data:{session}})=>{
+      if(session?.user){
+        userRef.current=session.user;
+        setUser(session.user);
+        await restoreFromSupabase(sbClient,session.user.id);
+        setPhase('app');
+      }else{
+        setPhase('login');
+      }
+    });
+
+    const{data:{subscription}}=sbClient.auth.onAuthStateChange(async(event,session)=>{
+      if(event==='SIGNED_IN'&&session?.user&&!userRef.current){
+        userRef.current=session.user;
+        setUser(session.user);
+        await restoreFromSupabase(sbClient,session.user.id);
+        setPhase('app');
+      }else if(event==='SIGNED_OUT'){
+        userRef.current=null;
+        setUser(null);
+        setPhase('login');
+      }
+    });
+
+    return()=>subscription.unsubscribe();
+  },[]);
+
+  if(phase==='checking') return(
+    <div style={{...S.page,alignItems:'center',justifyContent:'center'}}>
+      <div style={{color:C.sub,fontSize:15,padding:40}}>Loading…</div>
+    </div>
+  );
+  if(phase==='login') return <LoginScreen/>;
+  return <App user={user}/>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<AppShell/>);
 </script>
 </body>
 </html>
