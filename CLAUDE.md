@@ -2,7 +2,7 @@
 
 ## Project overview
 
-"Pathway to B1" — a static, no-build English tutoring web app for Danish speakers learning English up to CEFR B1. Deployed to GitHub Pages at https://fablefactor.github.io/test/.
+"Pathway to B1" — a static, no-build English tutoring web app for Danish speakers learning English up to CEFR B1. Deployed to Netlify at https://sagamapu.netlify.app/.
 
 **Stack:** React 18 + Babel Standalone from CDN. No bundler, no build step — JSX is compiled at runtime in the browser.
 
