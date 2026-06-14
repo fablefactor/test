@@ -1,0 +1,6 @@
+# Netlify configuration for "Pathway to B1"
+# Static, no-build site: JSX is compiled in the browser via Babel Standalone,
+# so there is no build step — Netlify just serves the repo root as-is.
+[build]
+  publish = "."
+  command = ""
