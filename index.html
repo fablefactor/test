@@ -7,6 +7,7 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="curriculum.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -46,6 +47,18 @@
 </head>
 <body>
 <div id="root"></div>
+<script>
+/* ── Supabase config ─────────────────────────────────────────
+   Replace these two values with your project credentials.
+   Find them at: supabase.com → your project → Project Settings → API
+   Leave as-is to run in localStorage-only mode (no login). ── */
+const SUPABASE_URL      = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const sbClient = (SUPABASE_URL !== 'YOUR_SUPABASE_URL')
+  ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY,
+      {auth:{persistSession:true,autoRefreshToken:true}})
+  : null;
+</script>
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback } = React;
 
@@ -70,6 +83,7 @@ const cardBack     = (card,lang)=> lang==='es' ? (card.es||card.enDef||'') : (ca
 const cardBackLabel= (lang)     => lang==='es' ? 'Español' : 'Definition';
 const quizExplain  = (q,lang)   => lang==='es' ? (q.explainEs||q.explain) : q.explain;
 const UI           = (lang,en,es)=> lang==='es' ? es : en;
+const pluralDays   = (lang,n)    => UI(lang,n!==1?'days':'day',n!==1?'días':'día');
 
 const LEVELS = ["A1","A2","B1"];
 const LEVEL_TOPICS = {
@@ -77,6 +91,8 @@ const LEVEL_TOPICS = {
   A2:["a2-past","a2-shop","a2-travel","a2-health","a2-work","a2-plans"],
   B1:["b1-opinion","b1-story","b1-if","b1-news","b1-email","b1-feel"],
 };
+const ALL_TOPIC_IDS=Object.keys(CURRICULUM);
+const TOTAL_CARDS=ALL_TOPIC_IDS.reduce((s,id)=>s+CURRICULUM[id].flashcards.length,0);
 const PRON_SENTENCES = {
   A1:[
     "Hello, my name is Anna and I am from Denmark.",
@@ -161,7 +177,8 @@ function clearWrong(topicId,qi){ try{ localStorage.setItem('ptb1:wrongs',JSON.st
 function getTopWrongs(n=12){ return getWrongs().sort((a,b)=>b.count-a.count).slice(0,n); }
 
 /* ══ Spaced Repetition (Leitner) ═══════════════════════════ */
-const BOX_INTERVALS = [0, 1, 60*12, 60*24, 60*24*3, 60*24*7]; // minutes
+const MIN=60000,HOUR=60*MIN,DAY=24*HOUR;
+const BOX_INTERVALS=[0,MIN,12*HOUR,DAY,3*DAY,7*DAY];
 
 function fcKey(id,i){ return `ptb1:fc:${id}:${i}`; }
 function getFCS(id,i){ try{ const v=localStorage.getItem(fcKey(id,i)); return v?JSON.parse(v):{box:0,next:0}; }catch{ return{box:0,next:0}; } }
@@ -169,7 +186,7 @@ function setFCS(id,i,s){ try{ localStorage.setItem(fcKey(id,i),JSON.stringify(s)
 function answerCard(id,i,result){
   const s=getFCS(id,i);
   const nb=result==='good'?Math.min(s.box+1,5):result==='close'?Math.max(s.box-1,1):1;
-  setFCS(id,i,{box:nb,next:Date.now()+BOX_INTERVALS[nb]*60000});
+  setFCS(id,i,{box:nb,next:Date.now()+BOX_INTERVALS[nb]});
 }
 function getDueCards(id){
   const tp=CURRICULUM[id]; if(!tp)return[];
@@ -177,17 +194,32 @@ function getDueCards(id){
   return tp.flashcards.map((c,i)=>({...c,index:i,...getFCS(id,i)})).filter(c=>c.next<=now);
 }
 function getMastery(id){ const tp=CURRICULUM[id]; if(!tp)return 0; return tp.flashcards.filter((_,i)=>getFCS(id,i).box>=5).length; }
-function allDue(){ return Object.keys(CURRICULUM).reduce((s,id)=>s+getDueCards(id).length,0); }
+function allDue(){ return ALL_TOPIC_IDS.reduce((s,id)=>s+getDueCards(id).length,0); }
 
 /* ══ Persistence ════════════════════════════════════════════ */
 function loadApp(){ try{ const v=localStorage.getItem('ptb1:app'); return v?JSON.parse(v):null; }catch{return null;} }
 function saveApp(s){ try{ localStorage.setItem('ptb1:app',JSON.stringify(s)); }catch{} }
 
+/* ══ Supabase sync ══════════════════════════════════════════ */
+async function restoreFromSupabase(client,userId){
+  try{
+    const{data:row}=await client.from('user_progress').select('data').eq('user_id',userId).maybeSingle();
+    if(row?.data) Object.entries(row.data).forEach(([k,v])=>{try{localStorage.setItem(k,v);}catch{}});
+  }catch(e){}
+}
+async function syncToSupabase(client,userId){
+  try{
+    const data={};
+    Object.keys(localStorage).forEach(k=>{if(k.startsWith('ptb1:'))data[k]=localStorage.getItem(k);});
+    await client.from('user_progress').upsert({user_id:userId,data,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+  }catch(e){}
+}
+
 /* ══ Reset helpers ══════════════════════════════════════════ */
 function clearLevelStorage(lv){
   const ids=LEVEL_TOPICS[lv]||[];
   try{
-    Object.keys(localStorage).forEach(k=>{ if(ids.some(id=>k.startsWith(`ptb1:fc:${id}:`))) localStorage.removeItem(k); });
+    ids.forEach(id=>CURRICULUM[id].flashcards.forEach((_,i)=>localStorage.removeItem(fcKey(id,i))));
     localStorage.setItem('ptb1:wrongs',JSON.stringify(getWrongs().filter(w=>!ids.includes(w.topicId))));
   }catch{}
 }
@@ -270,8 +302,88 @@ function Badge({color,bg,children}){
   return <span style={{background:bg,color,fontSize:12,fontWeight:800,padding:'3px 10px',borderRadius:99}}>{children}</span>;
 }
 
+/* ══ Pronunciation score colors (module-level — no per-render allocation) ══ */
+const WC={good:{bg:C.greenSoft,col:C.green},close:{bg:C.amberSoft,col:'#9A6B12'},miss:{bg:C.coralSoft,col:C.coral}};
+
+/* ══ Shared Quiz Components ══════════════════════════════════ */
+function QuizOption({op,i,checked,picked,correct,onPick}){
+  const isRight=picked===correct;
+  let bg=C.card,bdr=C.line;
+  if(checked&&i===correct){bg=C.greenSoft;bdr=C.green;}
+  else if(checked&&i===picked&&!isRight){bg=C.coralSoft;bdr=C.coral;}
+  else if(!checked&&i===picked){bg=C.tealSoft;bdr=C.teal;}
+  return(
+    <button disabled={checked} onClick={()=>onPick(i)}
+      style={{background:bg,border:`2px solid ${bdr}`,borderRadius:12,padding:'12px 14px',textAlign:'left',fontSize:16,fontWeight:600,cursor:checked?'default':'pointer',fontFamily:FONT}}>
+      {op}
+    </button>
+  );
+}
+function QuizFeedback({isRight,explain,lang}){
+  return(
+    <div style={{...S.card,marginTop:12,background:isRight?C.greenSoft:C.coralSoft,border:'none'}}>
+      <div style={{fontWeight:800,color:isRight?C.green:C.coral}}>{isRight?UI(lang,'✓ Correct!','✓ ¡Correcto!'):UI(lang,'✗ Not quite.','✗ Casi.')}</div>
+      <div style={{fontSize:14,marginTop:4,lineHeight:1.5}}>{explain}</div>
+    </div>
+  );
+}
+
+/* ══ Login ════════════════════════════════════════════════════ */
+function LoginScreen({lang='en'}){
+  const[email,setEmail]=useState('');
+  const[sent,setSent]=useState(false);
+  const[loading,setLoading]=useState(false);
+  const[err,setErr]=useState(null);
+
+  const send=async()=>{
+    if(!email.trim())return;
+    setLoading(true);setErr(null);
+    const redirect=window.location.origin+window.location.pathname;
+    const{error}=await sbClient.auth.signInWithOtp({email:email.trim(),options:{emailRedirectTo:redirect}});
+    setLoading(false);
+    if(error)setErr(error.message);else setSent(true);
+  };
+
+  if(sent) return(
+    <div style={S.page}>
+      <div style={{...S.shell,display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh'}}>
+        <div style={{...S.card,textAlign:'center',padding:40,maxWidth:380}}>
+          <div style={{fontSize:52,marginBottom:12}}>📬</div>
+          <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>{UI(lang,'Check your email','Revisa tu correo')}</div>
+          <div style={{color:C.sub,fontSize:14,lineHeight:1.6}}>
+            {UI(lang,'We sent a magic link to','Enviamos un enlace a')} <strong>{email}</strong>.{' '}
+            {UI(lang,'Click it to sign in — no password needed.','Haz clic para entrar — no necesitas contraseña.')}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return(
+    <div style={S.page}>
+      <div style={{...S.shell,display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh'}}>
+        <div style={{...S.card,padding:32,maxWidth:380,width:'100%'}}>
+          <div style={{textAlign:'center',marginBottom:28}}>
+            <div style={{fontSize:52,marginBottom:8}}>📚</div>
+            <h1 style={{margin:0,fontSize:24,fontWeight:800,color:C.teal}}>Pathway to B1</h1>
+            <div style={{color:C.sub,fontSize:14,marginTop:4}}>{UI(lang,'Sign in to continue your English journey','Inicia sesión para continuar tu camino al inglés')}</div>
+          </div>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&send()} placeholder="your@email.com"
+            style={{width:'100%',padding:'12px 14px',fontSize:16,borderRadius:12,border:`1.5px solid ${C.line}`,fontFamily:FONT,outline:'none',marginBottom:10}}/>
+          {err&&<div style={{color:C.coral,fontSize:13,marginBottom:8}}>{err}</div>}
+          <button onClick={send} disabled={loading||!email.trim()}
+            style={{...S.btn(email.trim()&&!loading?C.teal:C.line,'#fff',!email.trim()||loading),width:'100%'}}>
+            {loading?UI(lang,'Sending…','Enviando…'):UI(lang,'✉️  Send magic link','✉️  Enviar enlace mágico')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ══ Placement Test ══════════════════════════════════════════ */
-function PlacementTest({onDone}){
+function PlacementTest({onDone,lang='en'}){
   const[qi,setQi]=useState(0);
   const[picked,setPicked]=useState(null);
   const[checked,setChecked]=useState(false);
@@ -279,9 +391,6 @@ function PlacementTest({onDone}){
 
   const q=PLACEMENT_QS[qi];
   const last=qi===PLACEMENT_QS.length-1;
-  const isRight=picked===q.ans;
-
-  const doCheck=()=>setChecked(true);
 
   const doNext=()=>{
     const newAnswers=[...answers,{level:q.level,correct:picked===q.ans}];
@@ -307,8 +416,8 @@ function PlacementTest({onDone}){
     <div>
       <div style={{textAlign:'center',padding:'28px 0 18px'}}>
         <div style={{fontSize:44,marginBottom:10}}>🎯</div>
-        <h1 style={{margin:0,fontSize:24,fontWeight:800,color:C.teal}}>Placement Test</h1>
-        <div style={{color:C.sub,fontSize:14,marginTop:4}}>Let's find your starting level — {PLACEMENT_QS.length} quick questions</div>
+        <h1 style={{margin:0,fontSize:24,fontWeight:800,color:C.teal}}>{UI(lang,'Placement Test','Prueba de nivel')}</h1>
+        <div style={{color:C.sub,fontSize:14,marginTop:4}}>{UI(lang,`Let's find your starting level — ${PLACEMENT_QS.length} quick questions`,`Vamos a encontrar tu nivel inicial — ${PLACEMENT_QS.length} preguntas rápidas`)}</div>
       </div>
       <div style={{marginBottom:8}}><ProgBar value={qi+1} max={PLACEMENT_QS.length}/></div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
@@ -319,28 +428,19 @@ function PlacementTest({onDone}){
         <div style={{fontWeight:700,fontSize:17,lineHeight:1.5}}>{q.q}</div>
       </div>
       <div style={{display:'grid',gap:8,marginBottom:14}}>
-        {q.opts.map((op,i)=>{
-          let bg=C.card,bdr=C.line;
-          if(checked&&i===q.ans){bg=C.greenSoft;bdr=C.green;}
-          else if(checked&&i===picked&&!isRight){bg=C.coralSoft;bdr=C.coral;}
-          else if(!checked&&i===picked){bg=C.tealSoft;bdr=C.teal;}
-          return(
-            <button key={i} disabled={checked} onClick={()=>setPicked(i)}
-              style={{background:bg,border:`2px solid ${bdr}`,borderRadius:12,padding:'12px 14px',textAlign:'left',fontSize:16,fontWeight:600,cursor:checked?'default':'pointer',fontFamily:FONT}}>
-              {op}
-            </button>
-          );
-        })}
+        {q.opts.map((op,i)=>(
+          <QuizOption key={i} op={op} i={i} checked={checked} picked={picked} correct={q.ans} onPick={setPicked}/>
+        ))}
       </div>
       {!checked?(
-        <button disabled={picked==null} onClick={doCheck}
-          style={{...S.btn(picked==null?C.line:C.teal,'#fff',picked==null),width:'100%'}}>Check</button>
+        <button disabled={picked==null} onClick={()=>setChecked(true)}
+          style={{...S.btn(picked==null?C.line:C.teal,'#fff',picked==null),width:'100%'}}>{UI(lang,'Check','Comprobar')}</button>
       ):(
         <button onClick={doNext}
-          style={{...S.btn(C.teal),width:'100%'}}>{last?'See my level →':'Next →'}</button>
+          style={{...S.btn(C.teal),width:'100%'}}>{last?UI(lang,'See my level →','Ver mi nivel →'):UI(lang,'Next →','Siguiente →')}</button>
       )}
       <button onClick={()=>{try{localStorage.setItem('ptb1:placementDone','1');}catch{}onDone('A1');}}
-        style={{...S.ghost,width:'100%',marginTop:10,fontSize:13}}>Skip — start from A1</button>
+        style={{...S.ghost,width:'100%',marginTop:10,fontSize:13}}>{UI(lang,'Skip — start from A1','Saltar — empezar desde A1')}</button>
     </div>
   );
 }
@@ -390,7 +490,7 @@ function HomeScreen({level,setLevel,lang,xp,completed,dueCount,streak,weakCount,
         <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6,flexShrink:0}}>
           <button onClick={()=>onNav('settings')} aria-label="Settings" style={{background:'transparent',border:'none',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 2px'}}>⚙️</button>
           <div style={{background:C.amberSoft,color:'#9A6B12',fontWeight:800,borderRadius:99,padding:'6px 12px',fontSize:14,whiteSpace:'nowrap'}}>⭐ {xp} XP</div>
-          {stk.streak>0&&<div style={{background:'#FFF0E8',color:'#C05000',fontWeight:800,borderRadius:99,padding:'4px 10px',fontSize:13,whiteSpace:'nowrap'}}>🔥 {stk.streak} {UI(lang,stk.streak!==1?'days':'day',stk.streak!==1?'días':'día')}</div>}
+          {stk.streak>0&&<div style={{background:'#FFF0E8',color:'#C05000',fontWeight:800,borderRadius:99,padding:'4px 10px',fontSize:13,whiteSpace:'nowrap'}}>🔥 {stk.streak} {pluralDays(lang,stk.streak)}</div>}
         </div>
       </div>
       <div style={{margin:'16px 0'}}><LevelPath level={level} setLevel={setLevel} lang={lang} completed={completed}/></div>
@@ -507,25 +607,11 @@ function LessonFlow({topicId,lang,onBack,onComplete,addXP}){
           <div style={{fontWeight:700,fontSize:17,lineHeight:1.5}}>{ex.q}</div>
         </div>
         <div style={{display:'grid',gap:8}}>
-          {ex.options.map((op,i)=>{
-            let bg=C.card,bdr=C.line;
-            if(checked&&i===ex.correct){bg=C.greenSoft;bdr=C.green;}
-            else if(checked&&i===picked&&!isRight){bg=C.coralSoft;bdr=C.coral;}
-            else if(!checked&&i===picked){bg=C.tealSoft;bdr=C.teal;}
-            return(
-              <button key={i} disabled={checked} onClick={()=>setPicked(i)}
-                style={{background:bg,border:`2px solid ${bdr}`,borderRadius:12,padding:'12px 14px',textAlign:'left',fontSize:16,fontWeight:600,cursor:checked?'default':'pointer',fontFamily:FONT}}>
-                {op}
-              </button>
-            );
-          })}
+          {ex.options.map((op,i)=>(
+            <QuizOption key={i} op={op} i={i} checked={checked} picked={picked} correct={ex.correct} onPick={setPicked}/>
+          ))}
         </div>
-        {checked&&(
-          <div style={{...S.card,marginTop:12,background:isRight?C.greenSoft:C.coralSoft,border:'none'}}>
-            <div style={{fontWeight:800,color:isRight?C.green:C.coral}}>{isRight?UI(lang,'✓ Correct!','✓ ¡Correcto!'):UI(lang,'✗ Not quite.','✗ Casi.')}</div>
-            <div style={{fontSize:14,marginTop:4,lineHeight:1.5}}>{quizExplain(ex,lang)}</div>
-          </div>
-        )}
+        {checked&&<QuizFeedback isRight={picked===ex.correct} explain={quizExplain(ex,lang)} lang={lang}/>}
         <div style={{marginTop:14}}>
           {!checked?(
             <button disabled={picked==null} onClick={()=>{setChecked(true);if(picked===ex.correct){setRight(r=>r+1);clearWrong(topicId,qi);}else{addWrong(topicId,qi);}}}
@@ -568,10 +654,11 @@ function FlashcardsScreen({level,lang,addXP,onBack}){
   const[topic,setTopic]=useState(null);
   if(!topic){
     const ids=LEVEL_TOPICS[level];
+    const dueMap=Object.fromEntries(ids.map(id=>[id,getDueCards(id).length]));
     return(
       <div>
         <BackBar title={`${UI(lang,'Flashcards','Tarjetas')} · ${level}`} onBack={onBack}/>
-        {ids.some(id=>getDueCards(id).length>0)&&(
+        {ids.some(id=>dueMap[id]>0)&&(
           <div style={{...S.card,background:C.purpleSoft,border:'none',marginBottom:12,padding:'12px 14px'}}>
             <div style={{fontWeight:800,color:C.purple}}>🔔 {UI(lang,'You have cards due for review','Tienes tarjetas pendientes de repaso')}</div>
             <div style={{fontSize:13,color:C.sub,marginTop:2}}>{UI(lang,'Cards with a badge are ready to practise.','Las tarjetas con una insignia están listas para practicar.')}</div>
@@ -579,7 +666,7 @@ function FlashcardsScreen({level,lang,addXP,onBack}){
         )}
         <div style={{display:'grid',gap:8}}>
           {ids.map(id=>{
-            const tp=CURRICULUM[id]; const due=getDueCards(id).length; const mastered=getMastery(id);
+            const tp=CURRICULUM[id]; const due=dueMap[id]; const mastered=getMastery(id);
             return(
               <button key={id} onClick={()=>setTopic(id)} style={{...S.card,display:'flex',alignItems:'center',gap:12,cursor:'pointer',textAlign:'left',fontFamily:FONT}}>
                 <span style={{fontSize:24}}>{tp.icon}</span>
@@ -667,10 +754,11 @@ function WeakPointsScreen({lang,onBack}){
   const[idx,setIdx]=useState(0);
   const[picked,setPicked]=useState(null);
   const[checked,setChecked]=useState(false);
+  const title=UI(lang,'Weak Points','Puntos débiles');
 
   if(list.length===0) return(
     <div>
-      <BackBar title={UI(lang,'Weak Points','Puntos débiles')} onBack={onBack}/>
+      <BackBar title={title} onBack={onBack}/>
       <div style={{...S.card,textAlign:'center',padding:40}}>
         <div style={{fontSize:52,marginBottom:12}}>✨</div>
         <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>{UI(lang,'No weak points yet!','¡Aún no hay puntos débiles!')}</div>
@@ -682,7 +770,7 @@ function WeakPointsScreen({lang,onBack}){
 
   if(idx>=list.length) return(
     <div>
-      <BackBar title={UI(lang,'Weak Points','Puntos débiles')} onBack={onBack}/>
+      <BackBar title={title} onBack={onBack}/>
       <div style={{...S.card,textAlign:'center',padding:40}}>
         <div style={{fontSize:52,marginBottom:12}}>🎉</div>
         <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>{UI(lang,'All done!','¡Todo listo!')}</div>
@@ -701,7 +789,7 @@ function WeakPointsScreen({lang,onBack}){
 
   return(
     <div>
-      <BackBar title={UI(lang,'Weak Points','Puntos débiles')} onBack={onBack}/>
+      <BackBar title={title} onBack={onBack}/>
       <div style={{...S.card,background:C.coralSoft,border:'none',padding:'10px 14px',marginBottom:12}}>
         <div style={{fontWeight:700,fontSize:13,color:C.coral}}>{w.count}× {UI(lang,'missed','fallada')} · {tp.icon} {topicTitle(tp,lang)}</div>
       </div>
@@ -710,25 +798,11 @@ function WeakPointsScreen({lang,onBack}){
         <div style={{fontWeight:700,fontSize:17,lineHeight:1.5}}>{qdata.q}</div>
       </div>
       <div style={{display:'grid',gap:8}}>
-        {qdata.options.map((op,i)=>{
-          let bg=C.card,bdr=C.line;
-          if(checked&&i===qdata.correct){bg=C.greenSoft;bdr=C.green;}
-          else if(checked&&i===picked&&!isRight){bg=C.coralSoft;bdr=C.coral;}
-          else if(!checked&&i===picked){bg=C.tealSoft;bdr=C.teal;}
-          return(
-            <button key={i} disabled={checked} onClick={()=>setPicked(i)}
-              style={{background:bg,border:`2px solid ${bdr}`,borderRadius:12,padding:'12px 14px',textAlign:'left',fontSize:16,fontWeight:600,cursor:checked?'default':'pointer',fontFamily:FONT}}>
-              {op}
-            </button>
-          );
-        })}
+        {qdata.options.map((op,i)=>(
+          <QuizOption key={i} op={op} i={i} checked={checked} picked={picked} correct={qdata.correct} onPick={setPicked}/>
+        ))}
       </div>
-      {checked&&(
-        <div style={{...S.card,marginTop:12,background:isRight?C.greenSoft:C.coralSoft,border:'none'}}>
-          <div style={{fontWeight:800,color:isRight?C.green:C.coral}}>{isRight?UI(lang,'✓ Correct!','✓ ¡Correcto!'):UI(lang,'✗ Not quite.','✗ Casi.')}</div>
-          <div style={{fontSize:14,marginTop:4,lineHeight:1.5}}>{quizExplain(qdata,lang)}</div>
-        </div>
-      )}
+      {checked&&<QuizFeedback isRight={isRight} explain={quizExplain(qdata,lang)} lang={lang}/>}
       <div style={{marginTop:14}}>
         {!checked?(
           <button disabled={picked==null} onClick={()=>setChecked(true)}
@@ -750,7 +824,6 @@ function PronScreen({level,lang,addXP,onBack}){
   const target=sentences[idx%sentences.length];
   const{listening,start,stop,supported,micErr}=useListen(heard=>{ const r=scorePron(target,heard); setResult({...r,heard}); addXP(Math.round(r.pct/10)); });
   const next=()=>{setIdx(idx+1);setResult(null);try{window.speechSynthesis.cancel();}catch(e){}};
-  const wc=(s)=>s==='good'?{bg:C.greenSoft,col:C.green}:s==='close'?{bg:C.amberSoft,col:'#9A6B12'}:{bg:C.coralSoft,col:C.coral};
   return(
     <div>
       <BackBar title={`${UI(lang,'Pronunciation','Pronunciación')} · ${level}`} onBack={onBack}/>
@@ -778,7 +851,7 @@ function PronScreen({level,lang,addXP,onBack}){
             <div style={{fontSize:13,color:C.sub,fontWeight:600}}>{result.pct>=85?UI(lang,'Excellent!','¡Excelente!'):result.pct>=60?UI(lang,'Good — keep going!','¡Bien, sigue así!'):UI(lang,'Keep practising slowly.','Sigue practicando despacio.')}</div>
           </div>
           <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12}}>
-            {result.words.map((w,i)=>{ const{bg,col}=wc(w.s); return <span key={i} style={{background:bg,color:col,padding:'4px 10px',borderRadius:99,fontWeight:700,fontSize:14}}>{w.w}</span>; })}
+            {result.words.map((w,i)=>{ const{bg,col}=WC[w.s]||WC.miss; return <span key={i} style={{background:bg,color:col,padding:'4px 10px',borderRadius:99,fontWeight:700,fontSize:14}}>{w.w}</span>; })}
           </div>
           <div style={{fontSize:12,color:C.sub,marginBottom:14}}>{UI(lang,'I heard','Oí')}: "{result.heard}"</div>
           <button onClick={next} style={{...S.btn(C.teal),width:'100%'}}>{UI(lang,'Next sentence →','Siguiente frase →')}</button>
@@ -790,21 +863,20 @@ function PronScreen({level,lang,addXP,onBack}){
 
 /* ══ Progress ════════════════════════════════════════════════ */
 function ProgressScreen({xp,lang,completed,streak,onBack}){
-  const all=Object.keys(CURRICULUM);
-  const totalCards=all.reduce((s,id)=>s+CURRICULUM[id].flashcards.length,0);
-  const masteredCards=all.reduce((s,id)=>s+getMastery(id),0);
   const stk=streak||{streak:0,best:0};
+  const masteryMap=Object.fromEntries(ALL_TOPIC_IDS.map(id=>[id,getMastery(id)]));
+  const masteredCards=Object.values(masteryMap).reduce((s,m)=>s+m,0);
   return(
     <div>
       <BackBar title={UI(lang,'Progress','Progreso')} onBack={onBack}/>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
         {[
           {label:UI(lang,'Total XP','XP total'),val:`${xp} XP`,icon:'⭐',col:C.amber,bg:C.amberSoft},
-          {label:UI(lang,'Topics done','Temas hechos'),val:`${(completed||[]).length}/${all.length}`,icon:'📚',col:C.teal,bg:C.tealSoft},
-          {label:UI(lang,'Cards mastered','Tarjetas dominadas'),val:`${masteredCards}/${totalCards}`,icon:'🃏',col:C.purple,bg:C.purpleSoft},
+          {label:UI(lang,'Topics done','Temas hechos'),val:`${(completed||[]).length}/${ALL_TOPIC_IDS.length}`,icon:'📚',col:C.teal,bg:C.tealSoft},
+          {label:UI(lang,'Cards mastered','Tarjetas dominadas'),val:`${masteredCards}/${TOTAL_CARDS}`,icon:'🃏',col:C.purple,bg:C.purpleSoft},
           {label:UI(lang,'Cards due now','Tarjetas pendientes'),val:`${allDue()}`,icon:'🔔',col:C.coral,bg:C.coralSoft},
-          {label:UI(lang,'Current streak','Racha actual'),val:`${stk.streak} ${UI(lang,stk.streak!==1?'days':'day',stk.streak!==1?'días':'día')}`,icon:'🔥',col:'#C05000',bg:'#FFF0E8'},
-          {label:UI(lang,'Best streak','Mejor racha'),val:`${stk.best} ${UI(lang,stk.best!==1?'days':'day',stk.best!==1?'días':'día')}`,icon:'🏆',col:C.amber,bg:C.amberSoft},
+          {label:UI(lang,'Current streak','Racha actual'),val:`${stk.streak} ${pluralDays(lang,stk.streak)}`,icon:'🔥',col:'#C05000',bg:'#FFF0E8'},
+          {label:UI(lang,'Best streak','Mejor racha'),val:`${stk.best} ${pluralDays(lang,stk.best)}`,icon:'🏆',col:C.amber,bg:C.amberSoft},
         ].map(s=>(
           <div key={s.label} style={{...S.card,background:s.bg,border:'none',textAlign:'center',padding:'16px 12px'}}>
             <div style={{fontSize:28,marginBottom:4}}>{s.icon}</div>
@@ -821,7 +893,7 @@ function ProgressScreen({xp,lang,completed,streak,onBack}){
             <div style={{marginBottom:10}}><ProgBar value={done} max={ids.length}/></div>
             <div style={{display:'grid',gap:7}}>
               {ids.map(id=>{
-                const tp=CURRICULUM[id]; const tdone=(completed||[]).includes(id); const m=getMastery(id);
+                const tp=CURRICULUM[id]; const tdone=(completed||[]).includes(id); const m=masteryMap[id];
                 return(
                   <div key={id} style={{display:'flex',alignItems:'center',gap:8}}>
                     <span style={{fontSize:15}}>{tp.icon}</span>
@@ -840,7 +912,7 @@ function ProgressScreen({xp,lang,completed,streak,onBack}){
 }
 
 /* ══ Settings ════════════════════════════════════════════════ */
-function SettingsScreen({lang,setLang,onBack,onRerunPlacement,onResetLevel,onResetAll}){
+function SettingsScreen({lang,setLang,user,onSignOut,onBack,onRerunPlacement,onResetLevel,onResetAll}){
   const langOpts=[
     {id:'en',flag:'🇬🇧',label:'English',sub:UI(lang,'Immersion — no translations','Inmersión — sin traducciones')},
     {id:'es',flag:'🇪🇸',label:'Español',sub:UI(lang,'Spanish translations & explanations','Traducciones y explicaciones en español')},
@@ -892,12 +964,22 @@ function SettingsScreen({lang,setLang,onBack,onRerunPlacement,onResetLevel,onRes
         <div style={{fontSize:13,color:C.sub,marginBottom:12,lineHeight:1.5}}>{UI(lang,'Erase all XP, streaks, completed lessons, flashcard progress and weak points, and restart onboarding. This cannot be undone.','Borra todo el XP, las rachas, las lecciones completadas, el progreso de tarjetas y los puntos débiles, y reinicia la configuración inicial. Esto no se puede deshacer.')}</div>
         <button onClick={onResetAll} style={{...S.btn(C.coral),width:'100%'}}>🗑️ {UI(lang,'Reset all progress','Reiniciar todo el progreso')}</button>
       </div>
+
+      {sbClient&&(
+        <>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',margin:'4px 0 10px'}}>{UI(lang,'Account','Cuenta')}</div>
+          <div style={{...S.card,marginBottom:18}}>
+            {user?.email&&<div style={{fontSize:13,color:C.sub,marginBottom:12}}>{user.email}</div>}
+            <button onClick={onSignOut} style={{...S.btn(C.line,C.ink),width:'100%'}}>{UI(lang,'Sign out','Cerrar sesión')}</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 /* ══ App Root ════════════════════════════════════════════════ */
-function App(){
+function App({user}){
   const[screen,setScreen]=useState('home');
   const[level,setLevelState]=useState(()=>{ try{return localStorage.getItem('ptb1:level')||'A1';}catch{return'A1';} });
   const[lang,setLangState]=useState(()=>{ try{return localStorage.getItem('ptb1:lang')||'en';}catch{return'en';} });
@@ -907,11 +989,28 @@ function App(){
   const[weakCount,setWeakCount]=useState(()=>getTopWrongs(12).length);
   const[showPlacement,setShowPlacement]=useState(()=>{ try{return!localStorage.getItem('ptb1:placementDone');}catch{return false;} });
 
-  useEffect(()=>saveApp(st),[st]);
-  useEffect(()=>{ setDueCount(allDue()); setWeakCount(getTopWrongs(12).length); },[screen]);
+  const syncTimerRef=useRef(null);
+  const scheduleSync=useCallback(()=>{
+    if(!user||!sbClient)return;
+    clearTimeout(syncTimerRef.current);
+    syncTimerRef.current=setTimeout(()=>syncToSupabase(sbClient,user.id),1500);
+  },[user]);
+  const syncNow=useCallback(()=>{
+    if(!user||!sbClient)return;
+    clearTimeout(syncTimerRef.current);
+    syncToSupabase(sbClient,user.id);
+  },[user]);
 
-  const setLevel=(lv)=>{ setLevelState(lv); try{localStorage.setItem('ptb1:level',lv);}catch{} };
-  const setLang=(l)=>{ setLangState(l); try{localStorage.setItem('ptb1:lang',l);}catch{} };
+  useEffect(()=>{ saveApp(st); scheduleSync(); },[st,scheduleSync]);
+  useEffect(()=>{ scheduleSync(); setDueCount(allDue()); setWeakCount(getTopWrongs(12).length); },[screen,scheduleSync]);
+  useEffect(()=>{
+    const h=()=>{if(document.visibilityState==='hidden')syncNow();};
+    document.addEventListener('visibilitychange',h);
+    return()=>document.removeEventListener('visibilitychange',h);
+  },[syncNow]);
+
+  const setLevel=(lv)=>{ setLevelState(lv); try{localStorage.setItem('ptb1:level',lv);}catch{} scheduleSync(); };
+  const setLang=(l)=>{ setLangState(l); try{localStorage.setItem('ptb1:lang',l);}catch{} scheduleSync(); };
   const addXP=n=>{ setSt(s=>({...s,xp:(s.xp||0)+n})); setStreak(touchStreak()); };
   const completeTopic=id=>setSt(s=>({...s,completed:s.completed.includes(id)?s.completed:[...s.completed,id]}));
 
@@ -928,10 +1027,11 @@ function App(){
     setSt({xp:0,completed:[]}); setStreak({streak:0,best:0,last:null});
     setDueCount(0); setWeakCount(0); setLevelState('A1'); setScreen('home'); setShowPlacement(true);
   };
+  const signOut=async()=>{ syncNow(); if(sbClient)await sbClient.auth.signOut(); };
 
   if(showPlacement) return(
     <div style={S.page}><div style={S.shell}>
-      <PlacementTest onDone={(lv)=>{ setLevel(lv); setShowPlacement(false); }}/>
+      <PlacementTest lang={lang} onDone={(lv)=>{ setLevel(lv); setShowPlacement(false); }}/>
     </div></div>
   );
 
@@ -944,13 +1044,58 @@ function App(){
         {screen==='pron'&&<PronScreen level={level} lang={lang} addXP={addXP} onBack={()=>setScreen('home')}/>}
         {screen==='progress'&&<ProgressScreen xp={st.xp} lang={lang} completed={st.completed} streak={streak} onBack={()=>setScreen('home')}/>}
         {screen==='weakpoints'&&<WeakPointsScreen lang={lang} onBack={()=>{ setWeakCount(getTopWrongs(12).length); setScreen('home'); }}/>}
-        {screen==='settings'&&<SettingsScreen lang={lang} setLang={setLang} onBack={()=>setScreen('home')} onRerunPlacement={rerunPlacement} onResetLevel={resetLevel} onResetAll={resetAll}/>}
+        {screen==='settings'&&<SettingsScreen lang={lang} setLang={setLang} user={user} onSignOut={signOut} onBack={()=>setScreen('home')} onRerunPlacement={rerunPlacement} onResetLevel={resetLevel} onResetAll={resetAll}/>}
       </div>
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+/* ══ App Shell (auth wrapper) ═══════════════════════════════ */
+function AppShell(){
+  const[phase,setPhase]=useState('checking'); // 'checking' | 'login' | 'app'
+  const[user,setUser]=useState(null);
+  const userRef=useRef(null);
+
+  useEffect(()=>{
+    if(!sbClient){ setPhase('app'); return; }
+
+    sbClient.auth.getSession().then(async({data:{session}})=>{
+      if(session?.user){
+        userRef.current=session.user;
+        setUser(session.user);
+        await restoreFromSupabase(sbClient,session.user.id);
+        setPhase('app');
+      }else{
+        setPhase('login');
+      }
+    });
+
+    const{data:{subscription}}=sbClient.auth.onAuthStateChange(async(event,session)=>{
+      if(event==='SIGNED_IN'&&session?.user&&!userRef.current){
+        userRef.current=session.user;
+        setUser(session.user);
+        await restoreFromSupabase(sbClient,session.user.id);
+        setPhase('app');
+      }else if(event==='SIGNED_OUT'){
+        userRef.current=null;
+        setUser(null);
+        setPhase('login');
+      }
+    });
+
+    return()=>subscription.unsubscribe();
+  },[]);
+
+  if(phase==='checking') return(
+    <div style={{...S.page,alignItems:'center',justifyContent:'center'}}>
+      <div style={{color:C.sub,fontSize:15,padding:40}}>Loading…</div>
+    </div>
+  );
+  if(phase==='login') return <LoginScreen/>;
+  return <App user={user}/>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<AppShell/>);
 </script>
 </body>
 </html>
