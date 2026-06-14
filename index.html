@@ -52,8 +52,8 @@
    Replace these two values with your project credentials.
    Find them at: supabase.com → your project → Project Settings → API
    Leave as-is to run in localStorage-only mode (no login). ── */
-const SUPABASE_URL      = 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL      = 'https://yqrgdkasrraeybrloktu.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_l3fS-9soiT85dRu3db24Lg_t6jMuht1';
 const sbClient = (SUPABASE_URL !== 'YOUR_SUPABASE_URL')
   ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY,
       {auth:{persistSession:true,autoRefreshToken:true}})
