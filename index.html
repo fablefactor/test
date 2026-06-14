@@ -58,6 +58,19 @@ const C = {
 };
 const FONT = "'Avenir Next','Segoe UI',system-ui,-apple-system,sans-serif";
 
+/* ══ Localization helpers ══════════════════════════════════════
+   lang is 'en' (English immersion — no translations shown) or 'es' (Spanish). */
+const topicTitle   = (tp,lang)  => lang==='es' ? (tp.titleEs||tp.title) : tp.title;
+const theoryHeading= (sec,lang) => lang==='es' ? (sec.headingEs||sec.heading) : sec.heading;
+const theoryBody   = (sec,lang) => lang==='es' ? (sec.bodyEs||sec.body) : sec.body;
+// English immersion shows no translation line under examples; Spanish shows the es translation.
+const exTranslation= (ex,lang)  => lang==='es' ? (ex.es||'') : '';
+// Flashcard back: Spanish translation, or a plain-English definition in immersion mode.
+const cardBack     = (card,lang)=> lang==='es' ? (card.es||card.enDef||'') : (card.enDef||card.es||'');
+const cardBackLabel= (lang)     => lang==='es' ? 'Español' : 'Definition';
+const quizExplain  = (q,lang)   => lang==='es' ? (q.explainEs||q.explain) : q.explain;
+const UI           = (lang,en,es)=> lang==='es' ? es : en;
+
 const LEVELS = ["A1","A2","B1"];
 const LEVEL_TOPICS = {
   A1:["a1-greet","a1-num","a1-fam","a1-food","a1-day","a1-town"],
@@ -333,10 +346,10 @@ function PlacementTest({onDone}){
 }
 
 /* ══ Level Path ══════════════════════════════════════════════ */
-function LevelPath({level,setLevel,completed}){
+function LevelPath({level,setLevel,lang,completed}){
   return(
     <div style={{...S.card,padding:'18px 16px'}}>
-      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',marginBottom:12}}>Your Level</div>
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',marginBottom:12}}>{UI(lang,'Your Level','Tu nivel')}</div>
       <div style={{display:'flex',alignItems:'center'}}>
         {LEVELS.map((lv,i)=>{
           const ids=LEVEL_TOPICS[lv];
@@ -358,13 +371,13 @@ function LevelPath({level,setLevel,completed}){
 }
 
 /* ══ Home ════════════════════════════════════════════════════ */
-function HomeScreen({level,setLevel,xp,completed,dueCount,streak,weakCount,onNav}){
+function HomeScreen({level,setLevel,lang,xp,completed,dueCount,streak,weakCount,onNav}){
   const modes=[
-    {id:'lessons',icon:'📚',title:'Lessons',desc:'Theory → Examples → Quiz',col:C.teal,bg:C.tealSoft},
-    {id:'cards',icon:'🃏',title:'Flashcards',desc:`Spaced repetition${dueCount>0?` · ${dueCount} due`:''}`,col:C.purple,bg:C.purpleSoft,badge:dueCount||null},
-    {id:'pron',icon:'🎤',title:'Pronunciation',desc:'Speak & see your score',col:C.amber,bg:C.amberSoft},
-    {id:'weakpoints',icon:'🎯',title:'Weak Points',desc:'Drill your missed questions',col:C.coral,bg:C.coralSoft,badge:weakCount||null},
-    {id:'progress',icon:'📊',title:'Progress',desc:'Your stats & mastery',col:C.sub,bg:C.line},
+    {id:'lessons',icon:'📚',title:UI(lang,'Lessons','Lecciones'),desc:UI(lang,'Theory → Examples → Quiz','Teoría → Ejemplos → Cuestionario'),col:C.teal,bg:C.tealSoft},
+    {id:'cards',icon:'🃏',title:UI(lang,'Flashcards','Tarjetas'),desc:`${UI(lang,'Spaced repetition','Repetición espaciada')}${dueCount>0?` · ${dueCount} ${UI(lang,'due','pendientes')}`:''}`,col:C.purple,bg:C.purpleSoft,badge:dueCount||null},
+    {id:'pron',icon:'🎤',title:UI(lang,'Pronunciation','Pronunciación'),desc:UI(lang,'Speak & see your score','Habla y ve tu puntuación'),col:C.amber,bg:C.amberSoft},
+    {id:'weakpoints',icon:'🎯',title:UI(lang,'Weak Points','Puntos débiles'),desc:UI(lang,'Drill your missed questions','Practica tus preguntas falladas'),col:C.coral,bg:C.coralSoft,badge:weakCount||null},
+    {id:'progress',icon:'📊',title:UI(lang,'Progress','Progreso'),desc:UI(lang,'Your stats & mastery','Tus estadísticas y dominio'),col:C.sub,bg:C.line},
   ];
   const stk=streak||{streak:0,best:0};
   return(
@@ -372,16 +385,16 @@ function HomeScreen({level,setLevel,xp,completed,dueCount,streak,weakCount,onNav
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
         <div>
           <h1 style={{margin:0,fontSize:27,fontWeight:800,letterSpacing:-0.5,color:C.teal}}>Pathway to B1</h1>
-          <div style={{color:C.sub,fontSize:14,marginTop:2}}>Your English journey, one level at a time</div>
+          <div style={{color:C.sub,fontSize:14,marginTop:2}}>{UI(lang,'Your English journey, one level at a time','Tu camino al inglés, un nivel a la vez')}</div>
         </div>
         <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6,flexShrink:0}}>
           <button onClick={()=>onNav('settings')} aria-label="Settings" style={{background:'transparent',border:'none',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 2px'}}>⚙️</button>
           <div style={{background:C.amberSoft,color:'#9A6B12',fontWeight:800,borderRadius:99,padding:'6px 12px',fontSize:14,whiteSpace:'nowrap'}}>⭐ {xp} XP</div>
-          {stk.streak>0&&<div style={{background:'#FFF0E8',color:'#C05000',fontWeight:800,borderRadius:99,padding:'4px 10px',fontSize:13,whiteSpace:'nowrap'}}>🔥 {stk.streak} day{stk.streak!==1?'s':''}</div>}
+          {stk.streak>0&&<div style={{background:'#FFF0E8',color:'#C05000',fontWeight:800,borderRadius:99,padding:'4px 10px',fontSize:13,whiteSpace:'nowrap'}}>🔥 {stk.streak} {UI(lang,stk.streak!==1?'days':'day',stk.streak!==1?'días':'día')}</div>}
         </div>
       </div>
-      <div style={{margin:'16px 0'}}><LevelPath level={level} setLevel={setLevel} completed={completed}/></div>
-      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',margin:'18px 0 10px'}}>Practice modes</div>
+      <div style={{margin:'16px 0'}}><LevelPath level={level} setLevel={setLevel} lang={lang} completed={completed}/></div>
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',margin:'18px 0 10px'}}>{UI(lang,'Practice modes','Modos de práctica')}</div>
       <div style={{display:'grid',gap:10}}>
         {modes.map(m=>(
           <button key={m.id} onClick={()=>onNav(m.id)} style={{...S.card,display:'flex',gap:14,alignItems:'center',cursor:'pointer',textAlign:'left',fontFamily:FONT}}>
@@ -402,30 +415,30 @@ function HomeScreen({level,setLevel,xp,completed,dueCount,streak,weakCount,onNav
 }
 
 /* ══ Lessons ═════════════════════════════════════════════════ */
-function LessonsScreen({level,completed,onComplete,addXP,onBack}){
+function LessonsScreen({level,lang,completed,onComplete,addXP,onBack}){
   const[topic,setTopic]=useState(null);
   if(!topic) return(
     <div>
-      <BackBar title={`Lessons · ${level}`} onBack={onBack}/>
-      <div style={{fontWeight:700,color:C.sub,marginBottom:10,fontSize:14}}>Choose a topic</div>
+      <BackBar title={`${UI(lang,'Lessons','Lecciones')} · ${level}`} onBack={onBack}/>
+      <div style={{fontWeight:700,color:C.sub,marginBottom:10,fontSize:14}}>{UI(lang,'Choose a topic','Elige un tema')}</div>
       <div style={{display:'grid',gap:10}}>
         {LEVEL_TOPICS[level].map(id=>{
           const tp=CURRICULUM[id]; const done=(completed||[]).includes(id);
           return(
             <button key={id} onClick={()=>setTopic(id)} style={{...S.card,display:'flex',alignItems:'center',gap:12,cursor:'pointer',textAlign:'left',fontFamily:FONT,fontSize:16}}>
               <span style={{fontSize:26}}>{tp.icon}</span>
-              <span style={{flex:1,fontWeight:700}}>{tp.title}</span>
-              {done&&<Badge color={C.green} bg={C.greenSoft}>✓ Done</Badge>}
+              <span style={{flex:1,fontWeight:700}}>{topicTitle(tp,lang)}</span>
+              {done&&<Badge color={C.green} bg={C.greenSoft}>{UI(lang,'✓ Done','✓ Hecho')}</Badge>}
             </button>
           );
         })}
       </div>
     </div>
   );
-  return <LessonFlow topicId={topic} onBack={()=>setTopic(null)} onComplete={(score)=>{onComplete(topic,score);setTopic(null);}} addXP={addXP}/>;
+  return <LessonFlow topicId={topic} lang={lang} onBack={()=>setTopic(null)} onComplete={(score)=>{onComplete(topic,score);setTopic(null);}} addXP={addXP}/>;
 }
 
-function LessonFlow({topicId,onBack,onComplete,addXP}){
+function LessonFlow({topicId,lang,onBack,onComplete,addXP}){
   const tp=CURRICULUM[topicId];
   const[step,setStep]=useState('theory');
   const[tIdx,setTIdx]=useState(0);
@@ -440,20 +453,20 @@ function LessonFlow({topicId,onBack,onComplete,addXP}){
     const sec=tp.theory[tIdx]; const last=tIdx===tp.theory.length-1;
     return(
       <div>
-        <BackBar title={tp.title} onBack={onBack}/>
+        <BackBar title={topicTitle(tp,lang)} onBack={onBack}/>
         <div style={{display:'flex',gap:6,marginBottom:14}}>
           {tp.theory.map((_,i)=>(
             <div key={i} style={{flex:1,height:4,borderRadius:2,background:i<=tIdx?C.teal:C.line,transition:'background .3s'}}/>
           ))}
         </div>
         <div style={{...S.card,marginBottom:14}}>
-          <div style={{fontWeight:800,fontSize:16,color:C.teal,marginBottom:10}}>📖 {sec.heading}</div>
-          <div className="theory-body" style={{fontSize:15,lineHeight:1.7,color:C.ink}} dangerouslySetInnerHTML={{__html:sec.body}}/>
+          <div style={{fontWeight:800,fontSize:16,color:C.teal,marginBottom:10}}>📖 {theoryHeading(sec,lang)}</div>
+          <div className="theory-body" style={{fontSize:15,lineHeight:1.7,color:C.ink}} dangerouslySetInnerHTML={{__html:theoryBody(sec,lang)}}/>
         </div>
         <div style={{display:'flex',gap:8}}>
-          {tIdx>0&&<button onClick={()=>setTIdx(tIdx-1)} style={S.ghost}>← Prev</button>}
+          {tIdx>0&&<button onClick={()=>setTIdx(tIdx-1)} style={S.ghost}>{UI(lang,'← Prev','← Anterior')}</button>}
           <button onClick={()=>{ if(last)setStep('examples'); else setTIdx(tIdx+1); }} style={{...S.btn(C.teal),flex:1}}>
-            {last?'See Examples →':'Next →'}
+            {last?UI(lang,'See Examples →','Ver ejemplos →'):UI(lang,'Next →','Siguiente →')}
           </button>
         </div>
       </div>
@@ -462,22 +475,25 @@ function LessonFlow({topicId,onBack,onComplete,addXP}){
 
   if(step==='examples') return(
     <div>
-      <BackBar title={tp.title} onBack={()=>{setStep('theory');setTIdx(0);}}/>
+      <BackBar title={topicTitle(tp,lang)} onBack={()=>{setStep('theory');setTIdx(0);}}/>
       <div style={{...S.card,marginBottom:10,background:C.tealSoft,border:'none',padding:'12px 14px'}}>
-        <div style={{fontWeight:700,fontSize:14,color:C.teal}}>Read and listen to the examples, then take the quiz.</div>
+        <div style={{fontWeight:700,fontSize:14,color:C.teal}}>{UI(lang,'Read and listen to the examples, then take the quiz.','Lee y escucha los ejemplos, luego haz el cuestionario.')}</div>
       </div>
       <div style={{display:'grid',gap:8,marginBottom:18}}>
-        {tp.examples.map((ex,i)=>(
-          <div key={i} style={{...S.card,padding:14,display:'flex',gap:10,alignItems:'flex-start'}}>
-            <button onClick={()=>speak(ex.en)} aria-label="Listen" style={{background:C.tealSoft,border:'none',borderRadius:10,width:38,height:38,cursor:'pointer',fontSize:17,flexShrink:0}}>🔊</button>
-            <div>
-              <div style={{fontWeight:700,fontSize:15}}>{ex.en}</div>
-              <div style={{fontSize:13,color:C.sub,marginTop:3}}>{ex.da}</div>
+        {tp.examples.map((ex,i)=>{
+          const tr=exTranslation(ex,lang);
+          return(
+            <div key={i} style={{...S.card,padding:14,display:'flex',gap:10,alignItems:'flex-start'}}>
+              <button onClick={()=>speak(ex.en)} aria-label="Listen" style={{background:C.tealSoft,border:'none',borderRadius:10,width:38,height:38,cursor:'pointer',fontSize:17,flexShrink:0}}>🔊</button>
+              <div>
+                <div style={{fontWeight:700,fontSize:15}}>{ex.en}</div>
+                {tr&&<div style={{fontSize:13,color:C.sub,marginTop:3}}>{tr}</div>}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <button onClick={()=>setStep('quiz')} style={{...S.btn(C.teal),width:'100%'}}>Start Quiz →</button>
+      <button onClick={()=>setStep('quiz')} style={{...S.btn(C.teal),width:'100%'}}>{UI(lang,'Start Quiz →','Empezar cuestionario →')}</button>
     </div>
   );
 
@@ -485,7 +501,7 @@ function LessonFlow({topicId,onBack,onComplete,addXP}){
     const ex=tp.quiz[qi]; const isRight=picked===ex.correct;
     return(
       <div>
-        <BackBar title={`Q${qi+1} of ${tp.quiz.length}`} onBack={()=>setStep('examples')}/>
+        <BackBar title={`${UI(lang,'Q','P')}${qi+1} ${UI(lang,'of','de')} ${tp.quiz.length}`} onBack={()=>setStep('examples')}/>
         <div style={{marginBottom:12}}><ProgBar value={qi+1} max={tp.quiz.length}/></div>
         <div style={{...S.card,marginBottom:14}}>
           <div style={{fontWeight:700,fontSize:17,lineHeight:1.5}}>{ex.q}</div>
@@ -506,17 +522,17 @@ function LessonFlow({topicId,onBack,onComplete,addXP}){
         </div>
         {checked&&(
           <div style={{...S.card,marginTop:12,background:isRight?C.greenSoft:C.coralSoft,border:'none'}}>
-            <div style={{fontWeight:800,color:isRight?C.green:C.coral}}>{isRight?'✓ Correct!':'✗ Not quite.'}</div>
-            <div style={{fontSize:14,marginTop:4,lineHeight:1.5}}>{ex.explain}</div>
+            <div style={{fontWeight:800,color:isRight?C.green:C.coral}}>{isRight?UI(lang,'✓ Correct!','✓ ¡Correcto!'):UI(lang,'✗ Not quite.','✗ Casi.')}</div>
+            <div style={{fontSize:14,marginTop:4,lineHeight:1.5}}>{quizExplain(ex,lang)}</div>
           </div>
         )}
         <div style={{marginTop:14}}>
           {!checked?(
             <button disabled={picked==null} onClick={()=>{setChecked(true);if(picked===ex.correct){setRight(r=>r+1);clearWrong(topicId,qi);}else{addWrong(topicId,qi);}}}
-              style={{...S.btn(picked==null?C.line:C.teal,'#fff',picked==null),width:'100%'}}>Check</button>
+              style={{...S.btn(picked==null?C.line:C.teal,'#fff',picked==null),width:'100%'}}>{UI(lang,'Check','Comprobar')}</button>
           ):(
             <button onClick={()=>{ if(qi+1<tp.quiz.length){setQi(qi+1);setPicked(null);setChecked(false);}else setStep('done'); }}
-              style={{...S.btn(C.teal),width:'100%'}}>{qi+1<tp.quiz.length?'Next →':'See Results →'}</button>
+              style={{...S.btn(C.teal),width:'100%'}}>{qi+1<tp.quiz.length?UI(lang,'Next →','Siguiente →'):UI(lang,'See Results →','Ver resultados →')}</button>
           )}
         </div>
       </div>
@@ -527,19 +543,19 @@ function LessonFlow({topicId,onBack,onComplete,addXP}){
   const total=tp.quiz.length; const passed=right>=Math.ceil(total*0.6); const earned=right*10;
   return(
     <div>
-      <BackBar title="Lesson Complete" onBack={onBack}/>
+      <BackBar title={UI(lang,'Lesson Complete','Lección completada')} onBack={onBack}/>
       <div style={{...S.card,textAlign:'center',padding:36}}>
         <div style={{fontSize:52}}>{passed?'🎉':'💪'}</div>
-        <div style={{fontSize:22,fontWeight:800,margin:'12px 0 4px'}}>{right}/{total} correct</div>
-        <div style={{color:C.sub,fontSize:14,marginBottom:20}}>{passed?'Well done! Lesson complete.':'Keep practising — you need 60% to pass.'}</div>
+        <div style={{fontSize:22,fontWeight:800,margin:'12px 0 4px'}}>{right}/{total} {UI(lang,'correct','correctas')}</div>
+        <div style={{color:C.sub,fontSize:14,marginBottom:20}}>{passed?UI(lang,'Well done! Lesson complete.','¡Bien hecho! Lección completada.'):UI(lang,'Keep practising — you need 60% to pass.','Sigue practicando — necesitas un 60% para aprobar.')}</div>
         {passed?(
           <button onClick={()=>onComplete(right)} style={{...S.btn(C.teal),width:'100%'}}>
-            Finish &amp; earn {earned} XP
+            {UI(lang,`Finish & earn ${earned} XP`,`Terminar y ganar ${earned} XP`)}
           </button>
         ):(
           <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
-            <button onClick={()=>{setStep('theory');setTIdx(0);resetQuiz();}} style={S.btn(C.amber,'#1C2B33')}>Review lesson</button>
-            <button onClick={()=>{setStep('quiz');resetQuiz();}} style={S.btn(C.teal)}>Retry quiz</button>
+            <button onClick={()=>{setStep('theory');setTIdx(0);resetQuiz();}} style={S.btn(C.amber,'#1C2B33')}>{UI(lang,'Review lesson','Repasar lección')}</button>
+            <button onClick={()=>{setStep('quiz');resetQuiz();}} style={S.btn(C.teal)}>{UI(lang,'Retry quiz','Reintentar')}</button>
           </div>
         )}
       </div>
@@ -548,17 +564,17 @@ function LessonFlow({topicId,onBack,onComplete,addXP}){
 }
 
 /* ══ Flashcards ══════════════════════════════════════════════ */
-function FlashcardsScreen({level,addXP,onBack}){
+function FlashcardsScreen({level,lang,addXP,onBack}){
   const[topic,setTopic]=useState(null);
   if(!topic){
     const ids=LEVEL_TOPICS[level];
     return(
       <div>
-        <BackBar title={`Flashcards · ${level}`} onBack={onBack}/>
+        <BackBar title={`${UI(lang,'Flashcards','Tarjetas')} · ${level}`} onBack={onBack}/>
         {ids.some(id=>getDueCards(id).length>0)&&(
           <div style={{...S.card,background:C.purpleSoft,border:'none',marginBottom:12,padding:'12px 14px'}}>
-            <div style={{fontWeight:800,color:C.purple}}>🔔 You have cards due for review</div>
-            <div style={{fontSize:13,color:C.sub,marginTop:2}}>Cards with a badge are ready to practise.</div>
+            <div style={{fontWeight:800,color:C.purple}}>🔔 {UI(lang,'You have cards due for review','Tienes tarjetas pendientes de repaso')}</div>
+            <div style={{fontSize:13,color:C.sub,marginTop:2}}>{UI(lang,'Cards with a badge are ready to practise.','Las tarjetas con una insignia están listas para practicar.')}</div>
           </div>
         )}
         <div style={{display:'grid',gap:8}}>
@@ -568,8 +584,8 @@ function FlashcardsScreen({level,addXP,onBack}){
               <button key={id} onClick={()=>setTopic(id)} style={{...S.card,display:'flex',alignItems:'center',gap:12,cursor:'pointer',textAlign:'left',fontFamily:FONT}}>
                 <span style={{fontSize:24}}>{tp.icon}</span>
                 <div style={{flex:1}}>
-                  <div style={{fontWeight:700,fontSize:15}}>{tp.title}</div>
-                  <div style={{fontSize:12,color:C.sub,marginTop:2}}>{mastered}/{tp.flashcards.length} mastered{due>0?<span style={{marginLeft:8,color:C.purple,fontWeight:700}}>· {due} due</span>:''}</div>
+                  <div style={{fontWeight:700,fontSize:15}}>{topicTitle(tp,lang)}</div>
+                  <div style={{fontSize:12,color:C.sub,marginTop:2}}>{mastered}/{tp.flashcards.length} {UI(lang,'mastered','dominadas')}{due>0?<span style={{marginLeft:8,color:C.purple,fontWeight:700}}>· {due} {UI(lang,'due','pendientes')}</span>:''}</div>
                 </div>
                 {due>0&&<Badge color="#fff" bg={C.purple}>{due}</Badge>}
                 <div style={{color:C.purple,fontWeight:800,fontSize:20}}>›</div>
@@ -580,10 +596,10 @@ function FlashcardsScreen({level,addXP,onBack}){
       </div>
     );
   }
-  return <FlashcardDeck topicId={topic} addXP={addXP} onBack={()=>setTopic(null)}/>;
+  return <FlashcardDeck topicId={topic} lang={lang} addXP={addXP} onBack={()=>setTopic(null)}/>;
 }
 
-function FlashcardDeck({topicId,addXP,onBack}){
+function FlashcardDeck({topicId,lang,addXP,onBack}){
   const tp=CURRICULUM[topicId];
   const[done,setDone]=useState(false);
   const[idx,setIdx]=useState(0);
@@ -594,12 +610,12 @@ function FlashcardDeck({topicId,addXP,onBack}){
 
   if(done||session.length===0) return(
     <div>
-      <BackBar title={tp.title} onBack={onBack}/>
+      <BackBar title={topicTitle(tp,lang)} onBack={onBack}/>
       <div style={{...S.card,textAlign:'center',padding:36}}>
         <div style={{fontSize:48,marginBottom:12}}>🎴</div>
-        <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>All cards reviewed!</div>
-        <div style={{color:C.sub,fontSize:14,marginBottom:20}}>Cards marked "Got it" are scheduled for later review based on spaced repetition.</div>
-        <button onClick={onBack} style={{...S.btn(C.purple),width:'100%'}}>Back to topics</button>
+        <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>{UI(lang,'All cards reviewed!','¡Todas las tarjetas repasadas!')}</div>
+        <div style={{color:C.sub,fontSize:14,marginBottom:20}}>{UI(lang,'Cards marked "Got it" are scheduled for later review based on spaced repetition.','Las tarjetas marcadas como "Lo sé" se programan para repasar más tarde mediante repetición espaciada.')}</div>
+        <button onClick={onBack} style={{...S.btn(C.purple),width:'100%'}}>{UI(lang,'Back to topics','Volver a los temas')}</button>
       </div>
     </div>
   );
@@ -609,9 +625,9 @@ function FlashcardDeck({topicId,addXP,onBack}){
 
   return(
     <div>
-      <BackBar title={tp.title} onBack={onBack}/>
+      <BackBar title={topicTitle(tp,lang)} onBack={onBack}/>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-        <div style={{fontSize:13,color:C.sub,fontWeight:600}}>{session.length-idx} remaining</div>
+        <div style={{fontSize:13,color:C.sub,fontWeight:600}}>{session.length-idx} {UI(lang,'remaining','restantes')}</div>
         <div style={{display:'flex',gap:5}}>
           {[1,2,3,4,5].map(b=><div key={b} style={{width:8,height:8,borderRadius:'50%',background:(card.box||0)>=b?C.purple:C.line}}/>)}
         </div>
@@ -622,31 +638,31 @@ function FlashcardDeck({topicId,addXP,onBack}){
           <div className="fc-face" style={{background:C.card}}>
             <div style={{fontSize:11,fontWeight:700,letterSpacing:1,color:C.sub,textTransform:'uppercase',marginBottom:12}}>English</div>
             <div style={{fontWeight:800,fontSize:20,lineHeight:1.4}}>{card.front}</div>
-            <div style={{fontSize:13,color:C.sub,marginTop:14}}>Tap to reveal</div>
+            <div style={{fontSize:13,color:C.sub,marginTop:14}}>{UI(lang,'Tap to reveal','Toca para revelar')}</div>
           </div>
           <div className="fc-face fc-back" style={{background:C.tealSoft}}>
-            <div style={{fontSize:11,fontWeight:700,letterSpacing:1,color:C.teal,textTransform:'uppercase',marginBottom:12}}>Dansk</div>
-            <div style={{fontWeight:800,fontSize:20,lineHeight:1.4,color:C.teal}}>{card.back}</div>
-            <div style={{fontSize:13,color:C.teal,marginTop:14,opacity:.7}}>How well did you know this?</div>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:1,color:C.teal,textTransform:'uppercase',marginBottom:12}}>{cardBackLabel(lang)}</div>
+            <div style={{fontWeight:800,fontSize:lang==='es'?20:18,lineHeight:1.4,color:C.teal}}>{cardBack(card,lang)}</div>
+            <div style={{fontSize:13,color:C.teal,marginTop:14,opacity:.7}}>{UI(lang,'How well did you know this?','¿Cómo de bien lo sabías?')}</div>
           </div>
         </div>
       </div>
       {flipped?(
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginTop:14}}>
-          <button onClick={()=>answer('miss')} style={{...S.btn(C.coralSoft,C.coral)}}>✗ Missed</button>
-          <button onClick={()=>answer('close')} style={{...S.btn(C.amberSoft,'#9A6B12')}}>〜 Almost</button>
-          <button onClick={()=>answer('good')} style={{...S.btn(C.greenSoft,C.green)}}>✓ Got it!</button>
+          <button onClick={()=>answer('miss')} style={{...S.btn(C.coralSoft,C.coral)}}>{UI(lang,'✗ Missed','✗ Fallé')}</button>
+          <button onClick={()=>answer('close')} style={{...S.btn(C.amberSoft,'#9A6B12')}}>{UI(lang,'〜 Almost','〜 Casi')}</button>
+          <button onClick={()=>answer('good')} style={{...S.btn(C.greenSoft,C.green)}}>{UI(lang,'✓ Got it!','✓ ¡Lo sé!')}</button>
         </div>
       ):(
-        <button onClick={()=>setFlipped(true)} style={{...S.btn(C.purple),width:'100%',marginTop:14}}>Reveal translation</button>
+        <button onClick={()=>setFlipped(true)} style={{...S.btn(C.purple),width:'100%',marginTop:14}}>{UI(lang,'Reveal answer','Revelar respuesta')}</button>
       )}
-      <button onClick={()=>speak(card.front)} style={{...S.ghost,width:'100%',marginTop:8,fontSize:14}}>🔊 Hear pronunciation</button>
+      <button onClick={()=>speak(card.front)} style={{...S.ghost,width:'100%',marginTop:8,fontSize:14}}>🔊 {UI(lang,'Hear pronunciation','Oír pronunciación')}</button>
     </div>
   );
 }
 
 /* ══ Weak Points ═════════════════════════════════════════════ */
-function WeakPointsScreen({onBack}){
+function WeakPointsScreen({lang,onBack}){
   const[list]=useState(()=>getTopWrongs(12));
   const[idx,setIdx]=useState(0);
   const[picked,setPicked]=useState(null);
@@ -654,24 +670,24 @@ function WeakPointsScreen({onBack}){
 
   if(list.length===0) return(
     <div>
-      <BackBar title="Weak Points" onBack={onBack}/>
+      <BackBar title={UI(lang,'Weak Points','Puntos débiles')} onBack={onBack}/>
       <div style={{...S.card,textAlign:'center',padding:40}}>
         <div style={{fontSize:52,marginBottom:12}}>✨</div>
-        <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>No weak points yet!</div>
-        <div style={{color:C.sub,fontSize:14,marginBottom:20}}>Complete some quizzes — missed questions will appear here for extra practice.</div>
-        <button onClick={onBack} style={{...S.btn(C.teal),width:'100%'}}>Back to home</button>
+        <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>{UI(lang,'No weak points yet!','¡Aún no hay puntos débiles!')}</div>
+        <div style={{color:C.sub,fontSize:14,marginBottom:20}}>{UI(lang,'Complete some quizzes — missed questions will appear here for extra practice.','Completa algunos cuestionarios — las preguntas falladas aparecerán aquí para practicar más.')}</div>
+        <button onClick={onBack} style={{...S.btn(C.teal),width:'100%'}}>{UI(lang,'Back to home','Volver al inicio')}</button>
       </div>
     </div>
   );
 
   if(idx>=list.length) return(
     <div>
-      <BackBar title="Weak Points" onBack={onBack}/>
+      <BackBar title={UI(lang,'Weak Points','Puntos débiles')} onBack={onBack}/>
       <div style={{...S.card,textAlign:'center',padding:40}}>
         <div style={{fontSize:52,marginBottom:12}}>🎉</div>
-        <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>All done!</div>
-        <div style={{color:C.sub,fontSize:14,marginBottom:20}}>Great work — all weak points reviewed this session!</div>
-        <button onClick={onBack} style={{...S.btn(C.teal),width:'100%'}}>Back to home</button>
+        <div style={{fontWeight:800,fontSize:20,marginBottom:8}}>{UI(lang,'All done!','¡Todo listo!')}</div>
+        <div style={{color:C.sub,fontSize:14,marginBottom:20}}>{UI(lang,'Great work — all weak points reviewed this session!','¡Buen trabajo — todos los puntos débiles repasados en esta sesión!')}</div>
+        <button onClick={onBack} style={{...S.btn(C.teal),width:'100%'}}>{UI(lang,'Back to home','Volver al inicio')}</button>
       </div>
     </div>
   );
@@ -685,9 +701,9 @@ function WeakPointsScreen({onBack}){
 
   return(
     <div>
-      <BackBar title="Weak Points" onBack={onBack}/>
+      <BackBar title={UI(lang,'Weak Points','Puntos débiles')} onBack={onBack}/>
       <div style={{...S.card,background:C.coralSoft,border:'none',padding:'10px 14px',marginBottom:12}}>
-        <div style={{fontWeight:700,fontSize:13,color:C.coral}}>{w.count}× missed · {tp.icon} {tp.title}</div>
+        <div style={{fontWeight:700,fontSize:13,color:C.coral}}>{w.count}× {UI(lang,'missed','fallada')} · {tp.icon} {topicTitle(tp,lang)}</div>
       </div>
       <div style={{marginBottom:12}}><ProgBar value={idx} max={list.length} color={C.coral}/></div>
       <div style={{...S.card,marginBottom:14}}>
@@ -709,17 +725,17 @@ function WeakPointsScreen({onBack}){
       </div>
       {checked&&(
         <div style={{...S.card,marginTop:12,background:isRight?C.greenSoft:C.coralSoft,border:'none'}}>
-          <div style={{fontWeight:800,color:isRight?C.green:C.coral}}>{isRight?'✓ Correct!':'✗ Not quite.'}</div>
-          <div style={{fontSize:14,marginTop:4,lineHeight:1.5}}>{qdata.explain}</div>
+          <div style={{fontWeight:800,color:isRight?C.green:C.coral}}>{isRight?UI(lang,'✓ Correct!','✓ ¡Correcto!'):UI(lang,'✗ Not quite.','✗ Casi.')}</div>
+          <div style={{fontSize:14,marginTop:4,lineHeight:1.5}}>{quizExplain(qdata,lang)}</div>
         </div>
       )}
       <div style={{marginTop:14}}>
         {!checked?(
           <button disabled={picked==null} onClick={()=>setChecked(true)}
-            style={{...S.btn(picked==null?C.line:C.coral,'#fff',picked==null),width:'100%'}}>Check</button>
+            style={{...S.btn(picked==null?C.line:C.coral,'#fff',picked==null),width:'100%'}}>{UI(lang,'Check','Comprobar')}</button>
         ):(
           <button onClick={()=>{if(isRight)clearWrong(w.topicId,w.qi);setIdx(i=>i+1);setPicked(null);setChecked(false);}}
-            style={{...S.btn(C.teal),width:'100%'}}>{idx+1<list.length?'Next →':'Finish →'}</button>
+            style={{...S.btn(C.teal),width:'100%'}}>{idx+1<list.length?UI(lang,'Next →','Siguiente →'):UI(lang,'Finish →','Terminar →')}</button>
         )}
       </div>
     </div>
@@ -727,7 +743,7 @@ function WeakPointsScreen({onBack}){
 }
 
 /* ══ Pronunciation ═══════════════════════════════════════════ */
-function PronScreen({level,addXP,onBack}){
+function PronScreen({level,lang,addXP,onBack}){
   const sentences=PRON_SENTENCES[level];
   const[idx,setIdx]=useState(0);
   const[result,setResult]=useState(null);
@@ -737,35 +753,35 @@ function PronScreen({level,addXP,onBack}){
   const wc=(s)=>s==='good'?{bg:C.greenSoft,col:C.green}:s==='close'?{bg:C.amberSoft,col:'#9A6B12'}:{bg:C.coralSoft,col:C.coral};
   return(
     <div>
-      <BackBar title={`Pronunciation · ${level}`} onBack={onBack}/>
-      {!supported&&<div style={{...S.card,background:C.amberSoft,border:'none',marginBottom:12,fontSize:14}}>⚠️ Microphone not available. Use Chrome, Edge, or Safari.</div>}
+      <BackBar title={`${UI(lang,'Pronunciation','Pronunciación')} · ${level}`} onBack={onBack}/>
+      {!supported&&<div style={{...S.card,background:C.amberSoft,border:'none',marginBottom:12,fontSize:14}}>⚠️ {UI(lang,'Microphone not available. Use Chrome, Edge, or Safari.','Micrófono no disponible. Usa Chrome, Edge o Safari.')}</div>}
       <div style={{...S.card,textAlign:'center',padding:28,marginBottom:12}}>
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:1,color:C.sub,textTransform:'uppercase',marginBottom:14}}>Say this sentence</div>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:1,color:C.sub,textTransform:'uppercase',marginBottom:14}}>{UI(lang,'Say this sentence','Di esta frase')}</div>
         <div style={{fontSize:19,fontWeight:800,lineHeight:1.55,marginBottom:18}}>"{target}"</div>
-        <button onClick={()=>speak(target,0.82)} style={{...S.ghost,marginBottom:20,fontSize:14}}>🔊 Hear it first</button>
+        <button onClick={()=>speak(target,0.82)} style={{...S.ghost,marginBottom:20,fontSize:14}}>🔊 {UI(lang,'Hear it first','Escúchala primero')}</button>
         <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10}}>
           <button onClick={listening?stop:start} disabled={!supported} aria-label="Microphone" className={listening?'mic-recording':''}
             style={{width:72,height:72,borderRadius:'50%',border:'none',cursor:supported?'pointer':'default',background:listening?C.coral:C.teal,color:'#fff',fontSize:30,boxShadow:listening?'none':'0 2px 6px rgba(0,0,0,.15)',transition:'background .2s',opacity:supported?1:0.4}}>
             {listening?'■':'🎤'}
           </button>
           <div style={{fontSize:13,color:listening?C.coral:C.sub,fontWeight:600}}>
-            {listening?'Listening… speak now':'Tap the microphone and speak'}
+            {listening?UI(lang,'Listening… speak now','Escuchando… habla ahora'):UI(lang,'Tap the microphone and speak','Toca el micrófono y habla')}
           </div>
-          {micErr==='perm'&&<div style={{fontSize:12.5,color:C.coral,fontWeight:600}}>Microphone blocked. Allow it in browser settings.</div>}
-          {micErr==='nospeech'&&<div style={{fontSize:12.5,color:C.coral,fontWeight:600}}>I didn't hear anything — try again, a bit louder.</div>}
+          {micErr==='perm'&&<div style={{fontSize:12.5,color:C.coral,fontWeight:600}}>{UI(lang,'Microphone blocked. Allow it in browser settings.','Micrófono bloqueado. Permítelo en los ajustes del navegador.')}</div>}
+          {micErr==='nospeech'&&<div style={{fontSize:12.5,color:C.coral,fontWeight:600}}>{UI(lang,"I didn't hear anything — try again, a bit louder.",'No oí nada — inténtalo otra vez, un poco más alto.')}</div>}
         </div>
       </div>
       {result&&(
         <div style={{...S.card}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-            <div style={{fontWeight:800,fontSize:16}}>Match: <span style={{color:result.pct>=85?C.green:result.pct>=60?'#9A6B12':C.coral}}>{result.pct}%</span></div>
-            <div style={{fontSize:13,color:C.sub,fontWeight:600}}>{result.pct>=85?'Excellent!':result.pct>=60?'Good — keep going!':'Keep practising slowly.'}</div>
+            <div style={{fontWeight:800,fontSize:16}}>{UI(lang,'Match','Coincidencia')}: <span style={{color:result.pct>=85?C.green:result.pct>=60?'#9A6B12':C.coral}}>{result.pct}%</span></div>
+            <div style={{fontSize:13,color:C.sub,fontWeight:600}}>{result.pct>=85?UI(lang,'Excellent!','¡Excelente!'):result.pct>=60?UI(lang,'Good — keep going!','¡Bien, sigue así!'):UI(lang,'Keep practising slowly.','Sigue practicando despacio.')}</div>
           </div>
           <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12}}>
             {result.words.map((w,i)=>{ const{bg,col}=wc(w.s); return <span key={i} style={{background:bg,color:col,padding:'4px 10px',borderRadius:99,fontWeight:700,fontSize:14}}>{w.w}</span>; })}
           </div>
-          <div style={{fontSize:12,color:C.sub,marginBottom:14}}>I heard: "{result.heard}"</div>
-          <button onClick={next} style={{...S.btn(C.teal),width:'100%'}}>Next sentence →</button>
+          <div style={{fontSize:12,color:C.sub,marginBottom:14}}>{UI(lang,'I heard','Oí')}: "{result.heard}"</div>
+          <button onClick={next} style={{...S.btn(C.teal),width:'100%'}}>{UI(lang,'Next sentence →','Siguiente frase →')}</button>
         </div>
       )}
     </div>
@@ -773,22 +789,22 @@ function PronScreen({level,addXP,onBack}){
 }
 
 /* ══ Progress ════════════════════════════════════════════════ */
-function ProgressScreen({xp,completed,streak,onBack}){
+function ProgressScreen({xp,lang,completed,streak,onBack}){
   const all=Object.keys(CURRICULUM);
   const totalCards=all.reduce((s,id)=>s+CURRICULUM[id].flashcards.length,0);
   const masteredCards=all.reduce((s,id)=>s+getMastery(id),0);
   const stk=streak||{streak:0,best:0};
   return(
     <div>
-      <BackBar title="Progress" onBack={onBack}/>
+      <BackBar title={UI(lang,'Progress','Progreso')} onBack={onBack}/>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
         {[
-          {label:'Total XP',val:`${xp} XP`,icon:'⭐',col:C.amber,bg:C.amberSoft},
-          {label:'Topics done',val:`${(completed||[]).length}/${all.length}`,icon:'📚',col:C.teal,bg:C.tealSoft},
-          {label:'Cards mastered',val:`${masteredCards}/${totalCards}`,icon:'🃏',col:C.purple,bg:C.purpleSoft},
-          {label:'Cards due now',val:`${allDue()}`,icon:'🔔',col:C.coral,bg:C.coralSoft},
-          {label:'Current streak',val:`${stk.streak} day${stk.streak!==1?'s':''}`,icon:'🔥',col:'#C05000',bg:'#FFF0E8'},
-          {label:'Best streak',val:`${stk.best} day${stk.best!==1?'s':''}`,icon:'🏆',col:C.amber,bg:C.amberSoft},
+          {label:UI(lang,'Total XP','XP total'),val:`${xp} XP`,icon:'⭐',col:C.amber,bg:C.amberSoft},
+          {label:UI(lang,'Topics done','Temas hechos'),val:`${(completed||[]).length}/${all.length}`,icon:'📚',col:C.teal,bg:C.tealSoft},
+          {label:UI(lang,'Cards mastered','Tarjetas dominadas'),val:`${masteredCards}/${totalCards}`,icon:'🃏',col:C.purple,bg:C.purpleSoft},
+          {label:UI(lang,'Cards due now','Tarjetas pendientes'),val:`${allDue()}`,icon:'🔔',col:C.coral,bg:C.coralSoft},
+          {label:UI(lang,'Current streak','Racha actual'),val:`${stk.streak} ${UI(lang,stk.streak!==1?'days':'day',stk.streak!==1?'días':'día')}`,icon:'🔥',col:'#C05000',bg:'#FFF0E8'},
+          {label:UI(lang,'Best streak','Mejor racha'),val:`${stk.best} ${UI(lang,stk.best!==1?'days':'day',stk.best!==1?'días':'día')}`,icon:'🏆',col:C.amber,bg:C.amberSoft},
         ].map(s=>(
           <div key={s.label} style={{...S.card,background:s.bg,border:'none',textAlign:'center',padding:'16px 12px'}}>
             <div style={{fontSize:28,marginBottom:4}}>{s.icon}</div>
@@ -801,7 +817,7 @@ function ProgressScreen({xp,completed,streak,onBack}){
         const ids=LEVEL_TOPICS[lv]; const done=ids.filter(id=>(completed||[]).includes(id)).length;
         return(
           <div key={lv} style={{...S.card,marginBottom:10}}>
-            <div style={{fontWeight:800,fontSize:15,color:C.teal,marginBottom:8}}>{lv} — {done}/{ids.length} topics</div>
+            <div style={{fontWeight:800,fontSize:15,color:C.teal,marginBottom:8}}>{lv} — {done}/{ids.length} {UI(lang,'topics','temas')}</div>
             <div style={{marginBottom:10}}><ProgBar value={done} max={ids.length}/></div>
             <div style={{display:'grid',gap:7}}>
               {ids.map(id=>{
@@ -809,9 +825,9 @@ function ProgressScreen({xp,completed,streak,onBack}){
                 return(
                   <div key={id} style={{display:'flex',alignItems:'center',gap:8}}>
                     <span style={{fontSize:15}}>{tp.icon}</span>
-                    <span style={{flex:1,fontSize:14,fontWeight:600,color:tdone?C.ink:C.sub}}>{tp.title}</span>
+                    <span style={{flex:1,fontSize:14,fontWeight:600,color:tdone?C.ink:C.sub}}>{topicTitle(tp,lang)}</span>
                     {tdone&&<Badge color={C.green} bg={C.greenSoft}>✓</Badge>}
-                    <span style={{fontSize:12,color:C.sub}}>{m}/{tp.flashcards.length} cards</span>
+                    <span style={{fontSize:12,color:C.sub}}>{m}/{tp.flashcards.length} {UI(lang,'cards','tarjetas')}</span>
                   </div>
                 );
               })}
@@ -824,32 +840,57 @@ function ProgressScreen({xp,completed,streak,onBack}){
 }
 
 /* ══ Settings ════════════════════════════════════════════════ */
-function SettingsScreen({onBack,onRerunPlacement,onResetLevel,onResetAll}){
+function SettingsScreen({lang,setLang,onBack,onRerunPlacement,onResetLevel,onResetAll}){
+  const langOpts=[
+    {id:'en',flag:'🇬🇧',label:'English',sub:UI(lang,'Immersion — no translations','Inmersión — sin traducciones')},
+    {id:'es',flag:'🇪🇸',label:'Español',sub:UI(lang,'Spanish translations & explanations','Traducciones y explicaciones en español')},
+  ];
   return(
     <div>
-      <BackBar title="Settings" onBack={onBack}/>
+      <BackBar title={UI(lang,'Settings','Ajustes')} onBack={onBack}/>
 
-      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',margin:'4px 0 10px'}}>Onboarding</div>
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',margin:'4px 0 10px'}}>{UI(lang,'Tutor language','Idioma del tutor')}</div>
       <div style={{...S.card,marginBottom:18}}>
-        <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>Placement test</div>
-        <div style={{fontSize:13,color:C.sub,marginBottom:12,lineHeight:1.5}}>Retake the short test to recalculate your recommended starting level.</div>
-        <button onClick={onRerunPlacement} style={{...S.btn(C.teal),width:'100%'}}>🎯 Run placement test again</button>
+        <div style={{fontSize:13,color:C.sub,marginBottom:12,lineHeight:1.5}}>{UI(lang,'Choose how translations and explanations are shown. English uses full immersion (English definitions, no translations); Spanish shows everything translated into Spanish.','Elige cómo se muestran las traducciones y explicaciones. English usa inmersión total (definiciones en inglés, sin traducciones); Español lo muestra todo traducido al español.')}</div>
+        <div style={{display:'grid',gap:8}}>
+          {langOpts.map(o=>{
+            const active=lang===o.id;
+            return(
+              <button key={o.id} onClick={()=>setLang(o.id)}
+                style={{display:'flex',alignItems:'center',gap:12,background:active?C.tealSoft:C.card,border:`2px solid ${active?C.teal:C.line}`,borderRadius:12,padding:'12px 14px',textAlign:'left',cursor:'pointer',fontFamily:FONT}}>
+                <span style={{fontSize:26}}>{o.flag}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:800,fontSize:15,color:active?C.teal:C.ink}}>{o.label}</div>
+                  <div style={{fontSize:12.5,color:C.sub,marginTop:1}}>{o.sub}</div>
+                </div>
+                {active&&<span style={{color:C.teal,fontWeight:800,fontSize:18}}>✓</span>}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',margin:'4px 0 10px'}}>Reset progress</div>
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',margin:'4px 0 10px'}}>{UI(lang,'Onboarding','Configuración inicial')}</div>
+      <div style={{...S.card,marginBottom:18}}>
+        <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{UI(lang,'Placement test','Prueba de nivel')}</div>
+        <div style={{fontSize:13,color:C.sub,marginBottom:12,lineHeight:1.5}}>{UI(lang,'Retake the short test to recalculate your recommended starting level.','Repite la breve prueba para recalcular tu nivel inicial recomendado.')}</div>
+        <button onClick={onRerunPlacement} style={{...S.btn(C.teal),width:'100%'}}>🎯 {UI(lang,'Run placement test again','Hacer la prueba de nivel otra vez')}</button>
+      </div>
+
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:1.2,color:C.sub,textTransform:'uppercase',margin:'4px 0 10px'}}>{UI(lang,'Reset progress','Reiniciar progreso')}</div>
       <div style={{...S.card,marginBottom:12}}>
-        <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>Reset a single level</div>
-        <div style={{fontSize:13,color:C.sub,marginBottom:12,lineHeight:1.5}}>Clear completed lessons, flashcard memory and weak points for one level only.</div>
+        <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{UI(lang,'Reset a single level','Reiniciar un solo nivel')}</div>
+        <div style={{fontSize:13,color:C.sub,marginBottom:12,lineHeight:1.5}}>{UI(lang,'Clear completed lessons, flashcard memory and weak points for one level only.','Borra las lecciones completadas, la memoria de tarjetas y los puntos débiles de un solo nivel.')}</div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
           {LEVELS.map(lv=>(
-            <button key={lv} onClick={()=>onResetLevel(lv)} style={{...S.ghost,padding:'10px 0'}}>Reset {lv}</button>
+            <button key={lv} onClick={()=>onResetLevel(lv)} style={{...S.ghost,padding:'10px 0'}}>{UI(lang,'Reset','Reiniciar')} {lv}</button>
           ))}
         </div>
       </div>
       <div style={{...S.card,marginBottom:18,border:`1.5px solid ${C.coral}`}}>
-        <div style={{fontWeight:700,fontSize:15,marginBottom:4,color:C.coral}}>Reset everything</div>
-        <div style={{fontSize:13,color:C.sub,marginBottom:12,lineHeight:1.5}}>Erase all XP, streaks, completed lessons, flashcard progress and weak points, and restart onboarding. This cannot be undone.</div>
-        <button onClick={onResetAll} style={{...S.btn(C.coral),width:'100%'}}>🗑️ Reset all progress</button>
+        <div style={{fontWeight:700,fontSize:15,marginBottom:4,color:C.coral}}>{UI(lang,'Reset everything','Reiniciar todo')}</div>
+        <div style={{fontSize:13,color:C.sub,marginBottom:12,lineHeight:1.5}}>{UI(lang,'Erase all XP, streaks, completed lessons, flashcard progress and weak points, and restart onboarding. This cannot be undone.','Borra todo el XP, las rachas, las lecciones completadas, el progreso de tarjetas y los puntos débiles, y reinicia la configuración inicial. Esto no se puede deshacer.')}</div>
+        <button onClick={onResetAll} style={{...S.btn(C.coral),width:'100%'}}>🗑️ {UI(lang,'Reset all progress','Reiniciar todo el progreso')}</button>
       </div>
     </div>
   );
@@ -859,6 +900,7 @@ function SettingsScreen({onBack,onRerunPlacement,onResetLevel,onResetAll}){
 function App(){
   const[screen,setScreen]=useState('home');
   const[level,setLevelState]=useState(()=>{ try{return localStorage.getItem('ptb1:level')||'A1';}catch{return'A1';} });
+  const[lang,setLangState]=useState(()=>{ try{return localStorage.getItem('ptb1:lang')||'en';}catch{return'en';} });
   const[st,setSt]=useState(()=>loadApp()||{xp:0,completed:[]});
   const[dueCount,setDueCount]=useState(()=>allDue());
   const[streak,setStreak]=useState(()=>loadStreak());
@@ -869,6 +911,7 @@ function App(){
   useEffect(()=>{ setDueCount(allDue()); setWeakCount(getTopWrongs(12).length); },[screen]);
 
   const setLevel=(lv)=>{ setLevelState(lv); try{localStorage.setItem('ptb1:level',lv);}catch{} };
+  const setLang=(l)=>{ setLangState(l); try{localStorage.setItem('ptb1:lang',l);}catch{} };
   const addXP=n=>{ setSt(s=>({...s,xp:(s.xp||0)+n})); setStreak(touchStreak()); };
   const completeTopic=id=>setSt(s=>({...s,completed:s.completed.includes(id)?s.completed:[...s.completed,id]}));
 
@@ -895,13 +938,13 @@ function App(){
   return(
     <div style={S.page}>
       <div style={S.shell}>
-        {screen==='home'&&<HomeScreen level={level} setLevel={setLevel} xp={st.xp} completed={st.completed} dueCount={dueCount} streak={streak} weakCount={weakCount} onNav={setScreen}/>}
-        {screen==='lessons'&&<LessonsScreen level={level} completed={st.completed} onComplete={(id,score)=>{completeTopic(id);addXP(score*10);}} addXP={addXP} onBack={()=>setScreen('home')}/>}
-        {screen==='cards'&&<FlashcardsScreen level={level} addXP={addXP} onBack={()=>setScreen('home')}/>}
-        {screen==='pron'&&<PronScreen level={level} addXP={addXP} onBack={()=>setScreen('home')}/>}
-        {screen==='progress'&&<ProgressScreen xp={st.xp} completed={st.completed} streak={streak} onBack={()=>setScreen('home')}/>}
-        {screen==='weakpoints'&&<WeakPointsScreen onBack={()=>{ setWeakCount(getTopWrongs(12).length); setScreen('home'); }}/>}
-        {screen==='settings'&&<SettingsScreen onBack={()=>setScreen('home')} onRerunPlacement={rerunPlacement} onResetLevel={resetLevel} onResetAll={resetAll}/>}
+        {screen==='home'&&<HomeScreen level={level} setLevel={setLevel} lang={lang} xp={st.xp} completed={st.completed} dueCount={dueCount} streak={streak} weakCount={weakCount} onNav={setScreen}/>}
+        {screen==='lessons'&&<LessonsScreen level={level} lang={lang} completed={st.completed} onComplete={(id,score)=>{completeTopic(id);addXP(score*10);}} addXP={addXP} onBack={()=>setScreen('home')}/>}
+        {screen==='cards'&&<FlashcardsScreen level={level} lang={lang} addXP={addXP} onBack={()=>setScreen('home')}/>}
+        {screen==='pron'&&<PronScreen level={level} lang={lang} addXP={addXP} onBack={()=>setScreen('home')}/>}
+        {screen==='progress'&&<ProgressScreen xp={st.xp} lang={lang} completed={st.completed} streak={streak} onBack={()=>setScreen('home')}/>}
+        {screen==='weakpoints'&&<WeakPointsScreen lang={lang} onBack={()=>{ setWeakCount(getTopWrongs(12).length); setScreen('home'); }}/>}
+        {screen==='settings'&&<SettingsScreen lang={lang} setLang={setLang} onBack={()=>setScreen('home')} onRerunPlacement={rerunPlacement} onResetLevel={resetLevel} onResetAll={resetAll}/>}
       </div>
     </div>
   );
